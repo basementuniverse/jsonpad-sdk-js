@@ -1,0 +1,32 @@
+{
+  "name": "@basementuniverse/jsonpad-sdk",
+  "version": "1.0.0",
+  "description": "JSONPad SDK for Node and browser",
+  "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
+  "license": "MIT",
+  "homepage": "https://github.com/basementuniverse/jsonpad-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/basementuniverse/jsonpad-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basementuniverse/jsonpad-sdk/issues"
+  },
+  "main": "build/jsonpad.js",
+  "types": "build/jsonpad.d.ts",
+  "scripts": {
+    "build": "rollup -c && npm run clean",
+    "clean": "rm -rf build/types build/utilities build/index.d.ts build/constants.d.ts"
+  },
+  "devDependencies": {
+    "-": "^0.0.1",
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.1",
+    "rollup": "^4.24.3",
+    "rollup-plugin-dts": "^6.1.1",
+    "save-dev": "^0.0.1-security",
+    "tslib": "^2.8.1"
+  }
+}
