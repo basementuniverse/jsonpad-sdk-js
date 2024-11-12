@@ -16,7 +16,7 @@
   "types": "build/jsonpad.d.ts",
   "scripts": {
     "build": "rollup -c && npm run clean",
-    "clean": "rm -rf build/types build/utilities build/index.d.ts build/constants.d.ts"
+    "clean": "rm -rf build/types build/utilities build/models build/index.d.ts build/constants.d.ts"
   },
   "devDependencies": {
     "-": "^0.0.1",

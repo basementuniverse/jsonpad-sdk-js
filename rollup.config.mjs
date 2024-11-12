@@ -20,7 +20,7 @@ export default [
       }),
       commonjs({
         include: /node_modules/,
-        requireReturnsDefault: 'auto',
+        requireReturnsDefault: true,
       }),
       terser(),
     ].filter(Boolean),

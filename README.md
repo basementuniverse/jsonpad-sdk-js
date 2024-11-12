@@ -4,30 +4,37 @@ This package allows you to connect to JSONPad and manage your lists, items and i
 
 ## Installation
 
-Node (JS):
-
-```js
-const JSONPad = require('@basementuniverse/jsonpad-sdk');
-```
-
-Node (TS):
-
-```ts
-import JSONPad from '@basementuniverse/jsonpad-sdk';
-```
-
-Browser:
-
-```html
-<script src="jsonpad.js"></script>
+```bash
+npm install @basementuniverse/jsonpad-sdk
 ```
 
 ## Usage
 
 Create an instance of the JSONPad SDK and pass in your API token:
 
-```ts
+Node (JS):
+
+```js
+const JSONPad = require('@basementuniverse/jsonpad-sdk').default;
+
 const jsonpad = new JSONPad('your-api-token');
+```
+
+Node (TS):
+
+```ts
+import JSONPad from '@basementuniverse/jsonpad-sdk';
+
+const jsonpad = new JSONPad('your-api-token');
+```
+
+Browser:
+
+```html
+<script src="jsonpad.js"></script>
+<script>
+  const jsonpad = new JSONPad.default('your-api-token');
+</script>
 ```
 
 ### Create a list
