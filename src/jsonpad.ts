@@ -1,17 +1,14 @@
+import { Event, Index, Item, List } from './models';
 import {
-  Event,
   EventOrderBy,
-  Index,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
   IndexValueType,
-  Item,
   ItemEventType,
   ItemOrderBy,
   ItemStats,
   JSONPatch,
-  List,
   ListEventType,
   ListOrderBy,
   ListStats,
@@ -36,7 +33,14 @@ export class JSONPad {
    * Create a new list
    */
   public async createList(data: Partial<List>): Promise<List> {
-    return await request<List>(this.token, 'POST', '/lists', data);
+    return new List(
+      await request<ConstructorParameters<typeof List>[0]>(
+        this.token,
+        'POST',
+        '/lists',
+        data
+      )
+    );
   }
 
   /**
@@ -55,21 +59,24 @@ export class JSONPad {
       }
     >
   ): Promise<List[]> {
-    const result = await request<{ data: List[] }>(
-      this.token,
-      'GET',
-      '/lists',
-      parameters
-    );
+    const result = await request<{
+      data: ConstructorParameters<typeof List>[0][];
+    }>(this.token, 'GET', '/lists', parameters);
 
-    return result.data;
+    return result.data.map(datum => new List(datum));
   }
 
   /**
    * Fetch a specific list
    */
   public async fetchList(listId: string): Promise<List> {
-    return await request<List>(this.token, 'GET', `/lists/${listId}`);
+    return new List(
+      await request<ConstructorParameters<typeof List>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}`
+      )
+    );
   }
 
   /**
@@ -83,12 +90,32 @@ export class JSONPad {
       includeData: boolean;
     }>
   ): Promise<SearchResult[]> {
-    return await request<SearchResult[]>(
-      this.token,
-      'GET',
-      `/lists/${listId}/search`,
-      parameters
-    );
+    return (
+      await request<
+        ({
+          relevance: number;
+        } & (
+          | {
+              id: string;
+            }
+          | {
+              item: ConstructorParameters<typeof Item>[0];
+            }
+        ))[]
+      >(this.token, 'GET', `/lists/${listId}/search`, {
+        query,
+        ...parameters,
+      })
+    ).map((result): SearchResult => {
+      if ('item' in result) {
+        return {
+          relevance: result.relevance,
+          item: new Item(result.item),
+        };
+      }
+
+      return result;
+    });
   }
 
   /**
@@ -121,24 +148,23 @@ export class JSONPad {
       }
     >
   ): Promise<Event[]> {
-    const result = await request<{ data: Event[] }>(
-      this.token,
-      'GET',
-      `/lists/${listId}/events`,
-      parameters
-    );
+    const result = await request<{
+      data: ConstructorParameters<typeof Event>[0][];
+    }>(this.token, 'GET', `/lists/${listId}/events`, parameters);
 
-    return result.data;
+    return result.data.map(datum => new Event(datum));
   }
 
   /**
    * Fetch a specific event for a list
    */
   public async fetchListEvent(listId: string, eventId: string): Promise<Event> {
-    return await request<Event>(
-      this.token,
-      'GET',
-      `/lists/${listId}/events/${eventId}`
+    return new Event(
+      await request<ConstructorParameters<typeof Event>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}/events/${eventId}`
+      )
     );
   }
 
@@ -146,7 +172,14 @@ export class JSONPad {
    * Update a list
    */
   public async updateList(listId: string, data: Partial<List>): Promise<List> {
-    return await request<List>(this.token, 'PATCH', `/lists/${listId}`, data);
+    return new List(
+      await request<ConstructorParameters<typeof List>[0]>(
+        this.token,
+        'PATCH',
+        `/lists/${listId}`,
+        data
+      )
+    );
   }
 
   /**
@@ -164,11 +197,13 @@ export class JSONPad {
    * Create a new item
    */
   public async createItem(listId: string, data: Partial<Item>): Promise<Item> {
-    return await request<Item>(
-      this.token,
-      'POST',
-      `/lists/${listId}/items`,
-      data
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'POST',
+        `/lists/${listId}/items`,
+        data
+      )
     );
   }
 
@@ -185,15 +220,12 @@ export class JSONPad {
         [key: string]: any;
       }
     >
-  ): Promise<Index[]> {
-    const result = await request<{ data: Item[] }>(
-      this.token,
-      'GET',
-      `/lists/${listId}/items`,
-      parameters
-    );
+  ): Promise<Item[]> {
+    const result = await request<{
+      data: ConstructorParameters<typeof Item>[0][];
+    }>(this.token, 'GET', `/lists/${listId}/items`, parameters);
 
-    return result.data;
+    return result.data.map(datum => new Item(datum));
   }
 
   /**
@@ -234,11 +266,13 @@ export class JSONPad {
       includeData: boolean;
     }>
   ): Promise<Item> {
-    return await request<Item>(
-      this.token,
-      'GET',
-      `/lists/${listId}/items/${itemId}`,
-      parameters
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}/items/${itemId}`,
+        parameters
+      )
     );
   }
 
@@ -297,14 +331,16 @@ export class JSONPad {
       }
     >
   ): Promise<Event[]> {
-    const result = await request<{ data: Event[] }>(
+    const result = await request<{
+      data: ConstructorParameters<typeof Event>[0][];
+    }>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/events`,
       parameters
     );
 
-    return result.data;
+    return result.data.map(datum => new Event(datum));
   }
 
   /**
@@ -315,10 +351,12 @@ export class JSONPad {
     itemId: string,
     eventId: string
   ): Promise<Event> {
-    return await request<Event>(
-      this.token,
-      'GET',
-      `/lists/${listId}/items/${itemId}/events/${eventId}`
+    return new Event(
+      await request<ConstructorParameters<typeof Event>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}/items/${itemId}/events/${eventId}`
+      )
     );
   }
 
@@ -330,11 +368,13 @@ export class JSONPad {
     itemId: string,
     data: Partial<Item>
   ): Promise<Item> {
-    return await request<Item>(
-      this.token,
-      'PUT',
-      `/lists/${listId}/items/${itemId}`,
-      data
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'PUT',
+        `/lists/${listId}/items/${itemId}`,
+        data
+      )
     );
   }
 
@@ -351,11 +391,13 @@ export class JSONPad {
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
-    return await request<Item>(
-      this.token,
-      'POST',
-      `/lists/${listId}/items/${itemId}/data${pointerString}`,
-      data
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'POST',
+        `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        data
+      )
     );
   }
 
@@ -372,11 +414,13 @@ export class JSONPad {
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
-    return await request<Item>(
-      this.token,
-      'PUT',
-      `/lists/${listId}/items/${itemId}/data${pointerString}`,
-      data
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'PUT',
+        `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        data
+      )
     );
   }
 
@@ -393,11 +437,13 @@ export class JSONPad {
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
-    return await request<Item>(
-      this.token,
-      'PATCH',
-      `/lists/${listId}/items/${itemId}/data${pointerString}`,
-      patch
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'PATCH',
+        `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        patch
+      )
     );
   }
 
@@ -420,10 +466,12 @@ export class JSONPad {
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
-    return await request<Item>(
-      this.token,
-      'DELETE',
-      `/lists/${listId}/items/${itemId}/data${pointerString}`
+    return new Item(
+      await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'DELETE',
+        `/lists/${listId}/items/${itemId}/data${pointerString}`
+      )
     );
   }
 
@@ -438,11 +486,13 @@ export class JSONPad {
     listId: string,
     data: Partial<Index>
   ): Promise<Index> {
-    return await request<Index>(
-      this.token,
-      'POST',
-      `/lists/${listId}/indexes`,
-      data
+    return new Index(
+      await request<ConstructorParameters<typeof Index>[0]>(
+        this.token,
+        'POST',
+        `/lists/${listId}/indexes`,
+        data
+      )
     );
   }
 
@@ -461,24 +511,23 @@ export class JSONPad {
       }
     >
   ): Promise<Index[]> {
-    const result = await request<{ data: Index[] }>(
-      this.token,
-      'GET',
-      `/lists/${listId}/indexes`,
-      parameters
-    );
+    const result = await request<{
+      data: ConstructorParameters<typeof Index>[0][];
+    }>(this.token, 'GET', `/lists/${listId}/indexes`, parameters);
 
-    return result.data;
+    return result.data.map(datum => new Index(datum));
   }
 
   /**
    * Fetch a specific index
    */
   public async fetchIndex(listId: string, indexId: string): Promise<Index> {
-    return await request<Index>(
-      this.token,
-      'GET',
-      `/lists/${listId}/indexes/${indexId}`
+    return new Index(
+      await request<ConstructorParameters<typeof Index>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}/indexes/${indexId}`
+      )
     );
   }
 
@@ -514,14 +563,16 @@ export class JSONPad {
       }
     >
   ): Promise<Event[]> {
-    const result = await request<{ data: Event[] }>(
+    const result = await request<{
+      data: ConstructorParameters<typeof Event>[0][];
+    }>(
       this.token,
       'GET',
       `/lists/${listId}/indexes/${indexId}/events`,
       parameters
     );
 
-    return result.data;
+    return result.data.map(datum => new Event(datum));
   }
 
   /**
@@ -532,10 +583,12 @@ export class JSONPad {
     indexId: string,
     eventId: string
   ): Promise<Event> {
-    return await request<Event>(
-      this.token,
-      'GET',
-      `/lists/${listId}/indexes/${indexId}/events/${eventId}`
+    return new Event(
+      await request<ConstructorParameters<typeof Event>[0]>(
+        this.token,
+        'GET',
+        `/lists/${listId}/indexes/${indexId}/events/${eventId}`
+      )
     );
   }
 
@@ -547,11 +600,13 @@ export class JSONPad {
     indexId: string,
     data: Partial<Index>
   ): Promise<Index> {
-    return await request<Index>(
-      this.token,
-      'PATCH',
-      `/lists/${listId}/indexes/${indexId}`,
-      data
+    return new Index(
+      await request<ConstructorParameters<typeof Index>[0]>(
+        this.token,
+        'PATCH',
+        `/lists/${listId}/indexes/${indexId}`,
+        data
+      )
     );
   }
 

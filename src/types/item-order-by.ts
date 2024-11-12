@@ -1,3 +1,1 @@
-export type ItemOrderBy =
-  | 'createdAt'
-  | 'updatedAt';
+export type ItemOrderBy = string | 'createdAt' | 'updatedAt';

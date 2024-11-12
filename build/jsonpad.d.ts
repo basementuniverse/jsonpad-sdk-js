@@ -1,32 +1,67 @@
-type Event = {};
-
 type EventOrderBy = 'createdAt' | 'type';
 
-type Index = {};
-
-type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'defaultOrderDirection' | 'activated';
-
-type IndexStats = {};
+type EventStream = 'list' | 'item' | 'index';
 
 type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted';
 
+type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'defaultOrderDirection' | 'activated';
+
+type Metric<T extends string = string> = {
+    [key in T]: number;
+};
+type Stats<T extends object> = {
+    total: number;
+    totalThisPeriod: number;
+    metrics: ({
+        date: Date;
+        count: number;
+    } & T)[];
+};
+
+type IndexStats = {
+    events: Stats<{
+        types: Metric<IndexEventType>;
+    }>;
+};
+
 type IndexValueType = 'string' | 'number' | 'date';
-
-type Item = {};
-
-type ItemOrderBy = 'createdAt' | 'updatedAt';
-
-type ItemStats = {};
 
 type ItemEventType = 'item-created' | 'item-updated' | 'item-restored' | 'item-deleted';
 
-type List = {};
+type ItemOrderBy = string | 'createdAt' | 'updatedAt';
+
+type ItemStats = {
+    events: Stats<{
+        types: Metric<ItemEventType>;
+    }>;
+};
+
+type JSONPatch = {
+    op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test';
+    [key: string]: any;
+}[];
+
+type ListEventType = 'list-created' | 'list-updated' | 'list-deleted';
 
 type ListOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'pinned' | 'readonly' | 'realtime' | 'indexable' | 'protected' | 'activated';
 
-type ListStats = {};
-
-type ListEventType = 'list-created' | 'list-updated' | 'list-deleted';
+type ListStats = {
+    maxItems: number;
+    maxIndexes: number;
+    items: Stats<{
+        lists: {
+            [id: string]: number;
+        };
+    }>;
+    indexes: Stats<{
+        lists: {
+            [id: string]: number;
+        };
+    }>;
+    events: Stats<{
+        types: Metric<ListEventType>;
+    }>;
+};
 
 type OrderDirection = 'asc' | 'desc';
 
@@ -37,12 +72,114 @@ type PaginatedRequest<T extends string> = {
     direction: OrderDirection;
 };
 
-type SearchResult = {};
+type SearchResult = {
+    relevance: number;
+} & ({
+    id: string;
+} | {
+    item: Item;
+});
 
-type JSONPatch = {
-    op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test';
-    [key: string]: any;
-}[];
+declare class User {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    lastActiveAt: Date | null;
+    activated: boolean;
+    displayName: string;
+    description: string;
+    constructor(data: User & {
+        createdAt: string;
+        updatedAt: string;
+        lastActiveAt: string | null;
+    });
+}
+
+declare class Event {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    user: User;
+    modelId: string;
+    stream: EventStream;
+    type: ListEventType | ItemEventType | IndexEventType;
+    version: string;
+    snapshot: any;
+    attachments: any;
+    constructor(data: Event & {
+        createdAt: string;
+        updatedAt: string;
+        user: User & {
+            createdAt: string;
+            updatedAt: string;
+            lastActiveAt: string | null;
+        };
+    });
+}
+
+declare class Item {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    data: any;
+    description: string;
+    version: string;
+    readonly: boolean;
+    activated: boolean;
+    size: number;
+    constructor(data: Item & {
+        createdAt: string;
+        updatedAt: string;
+    });
+}
+
+declare class List {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    user: User;
+    name: string;
+    description: string;
+    pathName: string;
+    schema: any;
+    pinned: boolean;
+    readonly: boolean;
+    realtime: boolean;
+    protected: boolean;
+    indexable: boolean;
+    activated: boolean;
+    itemCount: number;
+    constructor(data: List & {
+        createdAt: string;
+        updatedAt: string;
+        user: User & {
+            createdAt: string;
+            updatedAt: string;
+            lastActiveAt: string | null;
+        };
+    });
+}
+
+declare class Index {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    description: string;
+    pathName: string;
+    pointer: string;
+    valueType: IndexValueType;
+    alias: boolean;
+    sorting: boolean;
+    filtering: boolean;
+    searching: boolean;
+    defaultOrderDirection: OrderDirection;
+    activated: boolean;
+    constructor(data: Index & {
+        createdAt: string;
+        updatedAt: string;
+    });
+}
 
 declare class JSONPad {
     private token;
@@ -115,7 +252,7 @@ declare class JSONPad {
         readonly: boolean;
         includeData: boolean;
         [key: string]: any;
-    }>): Promise<Index[]>;
+    }>): Promise<Item[]>;
     /**
      * Fetch a page of items, and only return each item's data or a part of the
      * item's data
@@ -239,4 +376,4 @@ declare class JSONPad {
     deleteIndex(listId: string, indexId: string): Promise<void>;
 }
 
-export { type List, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type SearchResult, User, JSONPad as default };
