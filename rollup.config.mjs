@@ -1,14 +1,14 @@
-import typescript from '@rollup/plugin-typescript';
+import commonjs from '@rollup/plugin-commonjs';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import commonjs from '@rollup/plugin-commonjs';
+import typescript from '@rollup/plugin-typescript';
 import { dts } from "rollup-plugin-dts";
 
 export default [
   {
     input: 'src/index.ts',
     output: {
-      file: 'build/jsonpad.js',
+      file: 'build/jsonpad-sdk.js',
       format: 'umd',
       name: 'JSONPad',
     },
@@ -28,7 +28,7 @@ export default [
   {
     input: './build/index.d.ts',
     output: [{
-      file: 'build/jsonpad.d.ts',
+      file: 'build/jsonpad-sdk.d.ts',
       format: 'es',
     }],
     plugins: [dts()],

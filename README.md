@@ -31,7 +31,7 @@ const jsonpad = new JSONPad('your-api-token');
 Browser:
 
 ```html
-<script src="jsonpad.js"></script>
+<script src="jsonpad-sdk.js"></script>
 <script>
   const jsonpad = new JSONPad.default('your-api-token');
 </script>

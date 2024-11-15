@@ -12,11 +12,11 @@
   "bugs": {
     "url": "https://github.com/basementuniverse/jsonpad-sdk/issues"
   },
-  "main": "build/jsonpad.js",
-  "types": "build/jsonpad.d.ts",
+  "main": "build/jsonpad-sdk.js",
+  "types": "build/jsonpad-sdk.d.ts",
   "scripts": {
     "build": "rollup -c && npm run clean",
-    "clean": "rm -rf build/types build/utilities build/models build/index.d.ts build/constants.d.ts"
+    "clean": "rm -rf build/types build/utilities build/models build/index.d.ts build/jsonpad.d.ts build/constants.d.ts"
   },
   "devDependencies": {
     "-": "^0.0.1",
