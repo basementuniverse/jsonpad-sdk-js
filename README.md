@@ -31,9 +31,11 @@ const jsonpad = new JSONPad('your-api-token');
 Browser:
 
 ```html
-<script src="jsonpad-sdk.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/jsonpad-sdk@1.0.0/build/jsonpad-sdk.js"></script>
 <script>
-  const jsonpad = new JSONPad.default('your-api-token');
+
+const jsonpad = new JSONPad.default('your-api-token');
+
 </script>
 ```
 
