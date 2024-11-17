@@ -1,6 +1,6 @@
 {
   "name": "@basementuniverse/jsonpad-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "JSONPad SDK for Node and browser",
   "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
   "license": "MIT",
