@@ -7,5 +7,6 @@ export type ListOrderBy =
   | 'readonly'
   | 'realtime'
   | 'indexable'
+  | 'generative'
   | 'protected'
   | 'activated';

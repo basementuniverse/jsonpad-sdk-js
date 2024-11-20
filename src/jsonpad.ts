@@ -38,6 +38,7 @@ export class JSONPad {
         this.token,
         'POST',
         '/lists',
+        undefined,
         data
       )
     );
@@ -177,6 +178,7 @@ export class JSONPad {
         this.token,
         'PATCH',
         `/lists/${listId}`,
+        undefined,
         data
       )
     );
@@ -196,12 +198,19 @@ export class JSONPad {
   /**
    * Create a new item
    */
-  public async createItem(listId: string, data: Partial<Item>): Promise<Item> {
+  public async createItem(
+    listId: string,
+    data: Partial<Item>,
+    parameters: Partial<{
+      generate: boolean;
+    }>
+  ): Promise<Item> {
     return new Item(
       await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items`,
+        parameters,
         data
       )
     );
@@ -264,6 +273,7 @@ export class JSONPad {
     parameters: Partial<{
       version: string;
       includeData: boolean;
+      generate: boolean;
     }>
   ): Promise<Item> {
     return new Item(
@@ -287,6 +297,7 @@ export class JSONPad {
       path: string;
       pointer: string;
       version: string;
+      generate: boolean;
     }>
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
@@ -373,6 +384,7 @@ export class JSONPad {
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}`,
+        undefined,
         data
       )
     );
@@ -396,6 +408,7 @@ export class JSONPad {
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        undefined,
         data
       )
     );
@@ -419,6 +432,7 @@ export class JSONPad {
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        undefined,
         data
       )
     );
@@ -442,6 +456,7 @@ export class JSONPad {
         this.token,
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        undefined,
         patch
       )
     );
@@ -491,6 +506,7 @@ export class JSONPad {
         this.token,
         'POST',
         `/lists/${listId}/indexes`,
+        undefined,
         data
       )
     );
@@ -605,6 +621,7 @@ export class JSONPad {
         this.token,
         'PATCH',
         `/lists/${listId}/indexes/${indexId}`,
+        undefined,
         data
       )
     );

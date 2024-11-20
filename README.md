@@ -473,6 +473,8 @@ type List = {
   realtime: boolean;
   protected: boolean;
   indexable: boolean;
+  generative: boolean;
+  generativePrompt: string;
   activated: boolean;
   itemCount: number;
 };

@@ -14,6 +14,8 @@ export class List {
   public realtime!: boolean;
   public protected!: boolean;
   public indexable!: boolean;
+  public generative!: boolean;
+  public generativePrompt!: string;
   public activated!: boolean;
   public itemCount!: number;
 
