@@ -1,3 +1,4 @@
+/resources
 .editorconfig
 .prettierrc
 rollup.config.mjs

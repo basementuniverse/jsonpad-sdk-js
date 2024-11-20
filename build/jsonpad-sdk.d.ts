@@ -43,7 +43,7 @@ type JSONPatch = {
 
 type ListEventType = 'list-created' | 'list-updated' | 'list-deleted';
 
-type ListOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'pinned' | 'readonly' | 'realtime' | 'indexable' | 'protected' | 'activated';
+type ListOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'pinned' | 'readonly' | 'realtime' | 'indexable' | 'generative' | 'protected' | 'activated';
 
 type ListStats = {
     maxItems: number;
@@ -147,6 +147,8 @@ declare class List {
     realtime: boolean;
     protected: boolean;
     indexable: boolean;
+    generative: boolean;
+    generativePrompt: string;
     activated: boolean;
     itemCount: number;
     constructor(data: List & {
@@ -243,7 +245,9 @@ declare class JSONPad {
     /**
      * Create a new item
      */
-    createItem(listId: string, data: Partial<Item>): Promise<Item>;
+    createItem(listId: string, data: Partial<Item>, parameters: Partial<{
+        generate: boolean;
+    }>): Promise<Item>;
     /**
      * Fetch a page of items
      */
@@ -270,6 +274,7 @@ declare class JSONPad {
     fetchItem(listId: string, itemId: string, parameters: Partial<{
         version: string;
         includeData: boolean;
+        generate: boolean;
     }>): Promise<Item>;
     /**
      * Fetch a specific item, and only return the item's data or a part of the
@@ -279,6 +284,7 @@ declare class JSONPad {
         path: string;
         pointer: string;
         version: string;
+        generate: boolean;
     }>): Promise<Item>;
     /**
      * Fetch stats for an item

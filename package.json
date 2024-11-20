@@ -4,13 +4,13 @@
   "description": "JSONPad SDK for Node and browser",
   "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
   "license": "MIT",
-  "homepage": "https://github.com/basementuniverse/jsonpad-sdk#readme",
+  "homepage": "https://github.com/basementuniverse/jsonpad-sdk-js#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/basementuniverse/jsonpad-sdk.git"
+    "url": "git+https://github.com/basementuniverse/jsonpad-sdk-js.git"
   },
   "bugs": {
-    "url": "https://github.com/basementuniverse/jsonpad-sdk/issues"
+    "url": "https://github.com/basementuniverse/jsonpad-sdk-js/issues"
   },
   "main": "build/jsonpad-sdk.js",
   "types": "build/jsonpad-sdk.d.ts",
