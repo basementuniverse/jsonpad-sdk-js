@@ -1,6 +1,9 @@
-import { Event, Index, Item, List } from './models';
+import { Event, Identity, Index, Item, List } from './models';
 import {
   EventOrderBy,
+  IdentityEventType,
+  IdentityOrderBy,
+  IdentityStats,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
@@ -20,6 +23,9 @@ import exclude from './utilities/exclude';
 import request from './utilities/request';
 
 export class JSONPad {
+  private identityGroup: string | undefined;
+  private identityToken: string | undefined;
+
   /**
    * Create a new JSONPad client instance
    */
@@ -27,6 +33,7 @@ export class JSONPad {
 
   // ---------------------------------------------------------------------------
   // LISTS
+  // #region lists
   // ---------------------------------------------------------------------------
 
   /**
@@ -176,7 +183,7 @@ export class JSONPad {
     return new List(
       await request<ConstructorParameters<typeof List>[0]>(
         this.token,
-        'PATCH',
+        'PUT',
         `/lists/${listId}`,
         undefined,
         data
@@ -191,8 +198,11 @@ export class JSONPad {
     await request(this.token, 'DELETE', `/lists/${listId}`);
   }
 
+  // #endregion
+
   // ---------------------------------------------------------------------------
   // ITEMS
+  // #region items
   // ---------------------------------------------------------------------------
 
   /**
@@ -211,7 +221,9 @@ export class JSONPad {
         'POST',
         `/lists/${listId}/items`,
         parameters,
-        data
+        data,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -232,7 +244,15 @@ export class JSONPad {
   ): Promise<Item[]> {
     const result = await request<{
       data: ConstructorParameters<typeof Item>[0][];
-    }>(this.token, 'GET', `/lists/${listId}/items`, parameters);
+    }>(
+      this.token,
+      'GET',
+      `/lists/${listId}/items`,
+      parameters,
+      undefined,
+      this.identityGroup,
+      this.identityToken
+    );
 
     return result.data.map(datum => new Item(datum));
   }
@@ -258,7 +278,10 @@ export class JSONPad {
       this.token,
       'GET',
       `/lists/${listId}/items/data${pointerString}`,
-      exclude(parameters, 'pointer')
+      exclude(parameters, 'pointer'),
+      undefined,
+      this.identityGroup,
+      this.identityToken
     );
 
     return result.data;
@@ -281,7 +304,10 @@ export class JSONPad {
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}`,
-        parameters
+        parameters,
+        undefined,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -306,7 +332,10 @@ export class JSONPad {
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/data${pointerString}`,
-      exclude(parameters, 'pointer')
+      exclude(parameters, 'pointer'),
+      undefined,
+      this.identityGroup,
+      this.identityToken
     );
   }
 
@@ -385,7 +414,9 @@ export class JSONPad {
         'PUT',
         `/lists/${listId}/items/${itemId}`,
         undefined,
-        data
+        data,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -409,7 +440,9 @@ export class JSONPad {
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
-        data
+        data,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -433,7 +466,9 @@ export class JSONPad {
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
-        data
+        data,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -457,7 +492,9 @@ export class JSONPad {
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
-        patch
+        patch,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
@@ -466,7 +503,15 @@ export class JSONPad {
    * Delete an item
    */
   public async deleteItem(listId: string, itemId: string) {
-    await request(this.token, 'DELETE', `/lists/${listId}/items/${itemId}`);
+    await request(
+      this.token,
+      'DELETE',
+      `/lists/${listId}/items/${itemId}`,
+      undefined,
+      undefined,
+      this.identityGroup,
+      this.identityToken
+    );
   }
 
   /**
@@ -485,13 +530,20 @@ export class JSONPad {
       await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'DELETE',
-        `/lists/${listId}/items/${itemId}/data${pointerString}`
+        `/lists/${listId}/items/${itemId}/data${pointerString}`,
+        undefined,
+        undefined,
+        this.identityGroup,
+        this.identityToken
       )
     );
   }
 
+  // #endregion
+
   // ---------------------------------------------------------------------------
   // INDEXES
+  // #region indexes
   // ---------------------------------------------------------------------------
 
   /**
@@ -633,4 +685,265 @@ export class JSONPad {
   public async deleteIndex(listId: string, indexId: string) {
     await request(this.token, 'DELETE', `/lists/${listId}/indexes/${indexId}`);
   }
+
+  // #endregion
+
+  // ---------------------------------------------------------------------------
+  // IDENTITIES
+  // #region identities
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a new identity
+   */
+  public async createIdentity(data: {
+    name: string;
+    group?: string;
+    password: string;
+  }): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'POST',
+        '/identities',
+        undefined,
+        data
+      )
+    );
+  }
+
+  /**
+   * Fetch a page of identities
+   */
+  public async fetchIdentities(
+    parameters: Partial<
+      PaginatedRequest<IdentityOrderBy> & {
+        group: string;
+        name: string;
+      }
+    >
+  ): Promise<Identity[]> {
+    const result = await request<{
+      data: ConstructorParameters<typeof Identity>[0][];
+    }>(this.token, 'GET', '/identities', parameters);
+
+    return result.data.map(datum => new Identity(datum));
+  }
+
+  /**
+   * Fetch a specific identity
+   */
+  public async fetchIdentity(identityId: string): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'GET',
+        `/identities/${identityId}`
+      )
+    );
+  }
+
+  /**
+   * Fetch stats for an identity
+   */
+  public async fetchIdentityStats(
+    identityId: string,
+    parameters: Partial<{
+      days: number;
+    }>
+  ): Promise<IdentityStats> {
+    return await request<IdentityStats>(
+      this.token,
+      'GET',
+      `/identities/${identityId}/stats`,
+      parameters
+    );
+  }
+
+  /**
+   * Fetch a page of events for an identity
+   */
+  public async fetchIdentityEvents(
+    identityId: string,
+    parameters: Partial<
+      PaginatedRequest<EventOrderBy> & {
+        startAt: Date;
+        endAt: Date;
+        type: IdentityEventType;
+      }
+    >
+  ): Promise<Event[]> {
+    const result = await request<{
+      data: ConstructorParameters<typeof Event>[0][];
+    }>(this.token, 'GET', `/identities/${identityId}/events`, parameters);
+
+    return result.data.map(datum => new Event(datum));
+  }
+
+  /**
+   * Fetch a specific event for an identity
+   */
+  public async fetchIdentityEvent(
+    identityId: string,
+    eventId: string
+  ): Promise<Event> {
+    return new Event(
+      await request<ConstructorParameters<typeof Event>[0]>(
+        this.token,
+        'GET',
+        `/identities/${identityId}/events/${eventId}`
+      )
+    );
+  }
+
+  /**
+   * Update an identity
+   */
+  public async updateIdentity(
+    identityId: string,
+    data: {
+      name?: string;
+      password?: string;
+    }
+  ): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'PUT',
+        `/identities/${identityId}`,
+        undefined,
+        data
+      )
+    );
+  }
+
+  /**
+   * Delete an identity
+   */
+  public async deleteIdentity(identityId: string) {
+    await request(this.token, 'DELETE', `/identities/${identityId}`);
+  }
+
+  /**
+   * Register a new identity
+   */
+  public async registerIdentity(data: {
+    group: string;
+    name: string;
+    password: string;
+  }): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'POST',
+        '/identities/register',
+        undefined,
+        data,
+        this.identityGroup,
+        this.identityToken
+      )
+    );
+  }
+
+  /**
+   * Login using an identity
+   */
+  public async loginIdentity(data: {
+    group: string;
+    name: string;
+    password: string;
+  }): Promise<Identity> {
+    const response = await request<
+      ConstructorParameters<typeof Identity>[0] & { token: string }
+    >(
+      this.token,
+      'POST',
+      '/identities/login',
+      undefined,
+      data,
+      this.identityGroup,
+      this.identityToken
+    );
+
+    this.identityGroup = response.group || undefined;
+    this.identityToken = response.token || undefined;
+
+    return new Identity(
+      exclude(response as any, 'token') as ConstructorParameters<
+        typeof Identity
+      >[0]
+    );
+  }
+
+  /**
+   * Logout using an identity
+   */
+  public async logoutIdentity() {
+    await request(
+      this.token,
+      'POST',
+      '/identities/logout',
+      undefined,
+      undefined,
+      this.identityGroup,
+      this.identityToken
+    );
+
+    this.identityGroup = undefined;
+    this.identityToken = undefined;
+  }
+
+  /**
+   * Fetch the current identity
+   */
+  public async fetchSelfIdentity(): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'GET',
+        '/identities/self',
+        undefined,
+        undefined,
+        this.identityGroup,
+        this.identityToken
+      )
+    );
+  }
+
+  /**
+   * Update the current identity
+   */
+  public async updateSelfIdentity(data: {
+    name: string;
+    password: string;
+  }): Promise<Identity> {
+    return new Identity(
+      await request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'PUT',
+        '/identities/self',
+        undefined,
+        data,
+        this.identityGroup,
+        this.identityToken
+      )
+    );
+  }
+
+  /**
+   * Delete the current identity
+   */
+  public async deleteSelfIdentity(identityId: string) {
+    await request(
+      this.token,
+      'DELETE',
+      '/identities/self',
+      undefined,
+      undefined,
+      this.identityGroup,
+      this.identityToken
+    );
+  }
+
+  // #endregion
 }

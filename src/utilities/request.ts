@@ -5,7 +5,9 @@ export default async function request<T>(
   method: string,
   path: string,
   parameters?: Record<string, any>,
-  body?: any
+  body?: any,
+  identityGroup?: string,
+  identityToken?: string
 ): Promise<T> {
   const parametersString = parameters
     ? new URLSearchParams({
@@ -17,14 +19,24 @@ export default async function request<T>(
         ),
       })
     : '';
+  const headers: Record<string, string> = {
+    [constants.API_TOKEN_HEADER]: token,
+    'Content-Type': 'application/json',
+  };
+
+  if (identityGroup) {
+    headers[constants.IDENTITY_GROUP_HEADER] = identityGroup;
+  }
+
+  if (identityToken) {
+    headers[constants.IDENTITY_TOKEN_HEADER] = identityToken;
+  }
+
   const response = await fetch(
     `${constants.API_URL}${path}?${parametersString}`,
     {
       method,
-      headers: {
-        [constants.API_TOKEN_HEADER]: token,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     }
   );

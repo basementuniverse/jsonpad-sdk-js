@@ -427,6 +427,133 @@ const index: Index = await jsonpad.updateIndex(
 await jsonpad.deleteIndex('list-id', 'index-id');
 ```
 
+### Create an identity
+
+```ts
+const identity: Identity = await jsonpad.createIdentity({
+  name: 'Alice',
+  group: 'my-group',
+  password: 'secret',
+});
+```
+
+### Fetch all identities
+
+```ts
+const identities: Identity[] = await jsonpad.fetchIdentities({
+  page: 1,
+  limit: 10,
+  order: 'createdAt',
+  direction: 'desc',
+});
+```
+
+### Fetch an identity
+
+```ts
+const identity: Identity = await jsonpad.fetchIdentity('identity-id');
+```
+
+### Fetch identity stats
+
+```ts
+const stats: IdentityStats = await jsonpad.fetchIdentityStats(
+  'identity-id',
+  {
+    days: 7,
+  }
+);
+```
+
+### Fetch identity events
+
+```ts
+const events: Event[] = await jsonpad.fetchIdentityEvents(
+  'identity-id',
+  {
+    page: 1,
+    limit: 10,
+    order: 'createdAt',
+    direction: 'desc',
+    startAt: new Date('2021-01-01'),
+    endAt: new Date('2021-12-31'),
+  }
+);
+```
+
+### Fetch an identity event
+
+```ts
+const event: Event = await jsonpad.fetchIdentityEvent(
+  'identity-id',
+  'event-id'
+);
+```
+
+### Update an identity
+
+```ts
+const identity: Identity = await jsonpad.updateIdentity(
+  'identity-id',
+  {
+    name: 'Updated Alice',
+    password: 'secret',
+  }
+);
+```
+
+### Delete an identity
+
+```ts
+await jsonpad.deleteIdentity('identity-id');
+```
+
+### Register an identity
+
+```ts
+const identity: Identity = await jsonpad.registerIdentity({
+  name: 'Alice',
+  group: 'my-group',
+  password: 'secret',
+});
+```
+
+### Login using an identity
+
+```ts
+const identity: Identity = await jsonpad.loginIdentity({
+  name: 'Alice',
+  password: 'secret',
+});
+```
+
+### Logout from an identity
+
+```ts
+await jsonpad.logoutIdentity();
+```
+
+### Fetch the currently logged in identity
+
+```ts
+const identity: Identity = await jsonpad.fetchSelfIdentity();
+```
+
+### Update the currently logged in identity
+
+```ts
+const identity: Identity = await jsonpad.updateSelfIdentity({
+  name: 'Updated Alice',
+  password: 'secret',
+});
+```
+
+### Delete the currently logged in identity
+
+```ts
+await jsonpad.deleteSelfIdentity();
+```
+
 ## Types
 
 The SDK includes TypeScript types for the JSONPad API. You can import them like so:
@@ -434,22 +561,26 @@ The SDK includes TypeScript types for the JSONPad API. You can import them like 
 ```ts
 import JSONPad, {
   List,
+  ListEventType,
+  ListOrderBy,
+  ListStats,
   Item,
+  ItemEventType,
+  ItemOrderBy,
+  ItemStats,
   Index,
-  Event,
-  User,
-  EventOrderBy,
-  EventStream,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
   IndexValueType,
-  ItemEventType,
-  ItemOrderBy,
-  ItemStats,
-  ListEventType,
-  ListOrderBy,
-  ListStats,
+  Identity,
+  IdentityEventType,
+  IdentityOrderBy,
+  IdentityStats,
+  Event,
+  EventOrderBy,
+  EventStream,
+  User,
   OrderDirection,
   PaginatedRequest,
   SearchResult,
@@ -478,172 +609,6 @@ type List = {
   activated: boolean;
   itemCount: number;
 };
-```
-
-### `Item`
-
-```ts
-type Item = {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  data: any;
-  description: string;
-  version: string;
-  readonly: boolean;
-  activated: boolean;
-  size: number;
-};
-```
-
-### `Index`
-
-```ts
-type Index = {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  name: string;
-  description: string;
-  pathName: string;
-  pointer: string;
-  valueType: IndexValueType;
-  alias: boolean;
-  sorting: boolean;
-  filtering: boolean;
-  searching: boolean;
-  defaultOrderDirection: OrderDirection;
-  activated: boolean;
-};
-```
-
-### `Event`
-
-```ts
-type Event = {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  user: User;
-  modelId: string;
-  stream: EventStream;
-  type: ListEventType | ItemEventType | IndexEventType;
-  version: string;
-  snapshot: any;
-  attachments: any;
-};
-```
-
-### `User`
-
-```ts
-type User = {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  lastActiveAt: Date | null;
-  activated: boolean;
-  displayName: string;
-  description: string;
-};
-```
-
-### `EventOrderBy`
-
-```ts
-type EventOrderBy =
-  | 'createdAt'
-  | 'type';
-```
-
-### `EventStream`
-
-```ts
-type EventStream = 'list' | 'item' | 'index';
-```
-
-### `IndexEventType`
-
-```ts
-type IndexEventType =
-  | 'index-created'
-  | 'index-updated'
-  | 'index-deleted';
-```
-
-### `IndexOrderBy`
-
-```ts
-type IndexOrderBy =
-  | 'createdAt'
-  | 'updatedAt'
-  | 'name'
-  | 'pathName'
-  | 'valueType'
-  | 'alias'
-  | 'sorting'
-  | 'filtering'
-  | 'searching'
-  | 'defaultOrderDirection'
-  | 'activated';
-```
-
-### `IndexStats`
-
-```ts
-type IndexStats = {
-  events: {
-    total: number;
-    totalThisPeriod: number;
-    metrics: {
-      date: Date;
-      count: number;
-      types: {
-        [type in IndexEventType]: number;
-      };
-    }[];
-  };
-}
-```
-
-### `IndexValueType`
-
-```ts
-type IndexValueType = 'string' | 'number' | 'date';
-```
-
-### `ItemEventType`
-
-```ts
-type ItemEventType =
-  | 'item-created'
-  | 'item-updated'
-  | 'item-restored'
-  | 'item-deleted';
-```
-
-### `ItemOrderBy`
-
-```ts
-type ItemOrderBy = string | 'createdAt' | 'updatedAt';
-```
-
-### `ItemStats`
-
-```ts
-type ItemStats = {
-  events: {
-    total: number;
-    totalThisPeriod: number;
-    metrics: {
-      date: Date;
-      count: number;
-      types: {
-        [type in ItemEventType]: number;
-      };
-    }[];
-  };
-}
 ```
 
 ### `ListEventType`
@@ -710,6 +675,230 @@ type ListStats = {
       };
     }[];
   };
+};
+```
+
+### `Item`
+
+```ts
+type Item = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  data: any;
+  description: string;
+  version: string;
+  readonly: boolean;
+  activated: boolean;
+  size: number;
+};
+```
+
+### `ItemEventType`
+
+```ts
+type ItemEventType =
+  | 'item-created'
+  | 'item-updated'
+  | 'item-restored'
+  | 'item-deleted';
+```
+
+### `ItemOrderBy`
+
+```ts
+type ItemOrderBy = string | 'createdAt' | 'updatedAt';
+```
+
+### `ItemStats`
+
+```ts
+type ItemStats = {
+  events: {
+    total: number;
+    totalThisPeriod: number;
+    metrics: {
+      date: Date;
+      count: number;
+      types: {
+        [type in ItemEventType]: number;
+      };
+    }[];
+  };
+}
+```
+
+### `Index`
+
+```ts
+type Index = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  description: string;
+  pathName: string;
+  pointer: string;
+  valueType: IndexValueType;
+  alias: boolean;
+  sorting: boolean;
+  filtering: boolean;
+  searching: boolean;
+  defaultOrderDirection: OrderDirection;
+  activated: boolean;
+};
+```
+
+### `IndexEventType`
+
+```ts
+type IndexEventType =
+  | 'index-created'
+  | 'index-updated'
+  | 'index-deleted';
+```
+
+### `IndexOrderBy`
+
+```ts
+type IndexOrderBy =
+  | 'createdAt'
+  | 'updatedAt'
+  | 'name'
+  | 'pathName'
+  | 'valueType'
+  | 'alias'
+  | 'sorting'
+  | 'filtering'
+  | 'searching'
+  | 'defaultOrderDirection'
+  | 'activated';
+```
+
+### `IndexStats`
+
+```ts
+type IndexStats = {
+  events: {
+    total: number;
+    totalThisPeriod: number;
+    metrics: {
+      date: Date;
+      count: number;
+      types: {
+        [type in IndexEventType]: number;
+      };
+    }[];
+  };
+}
+```
+
+### `IndexValueType`
+
+```ts
+type IndexValueType = 'string' | 'number' | 'date';
+```
+
+### `Identity`
+
+```ts
+type Identity = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: User;
+  name: string;
+  group: string;
+  lastLoginAt: Date | null;
+  activated: boolean;
+};
+```
+
+### `IdentityEventType`
+
+```ts
+export type IdentityEventType =
+  | 'identity-created'
+  | 'identity-updated'
+  | 'identity-deleted'
+  | 'identity-registered'
+  | 'identity-logged-in'
+  | 'identity-logged-out'
+  | 'identity-updated-self'
+  | 'identity-deleted-self';
+```
+
+### `IdentityOrderBy`
+
+```ts
+export type IdentityOrderBy =
+  | 'createdAt'
+  | 'updatedAt'
+  | 'name'
+  | 'group'
+  | 'activated';
+```
+
+### `IdentityStats`
+
+```ts
+type IdentityStats = {
+  events: {
+    total: number;
+    totalThisPeriod: number;
+    metrics: {
+      date: Date;
+      count: number;
+      types: {
+        [type in IdentityEventType]: number;
+      };
+    }[];
+  };
+}
+```
+
+### `Event`
+
+```ts
+type Event = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: User;
+  modelId: string;
+  stream: EventStream;
+  type: ListEventType | ItemEventType | IndexEventType;
+  version: string;
+  snapshot: any;
+  attachments: any;
+};
+```
+
+### `EventOrderBy`
+
+```ts
+type EventOrderBy =
+  | 'createdAt'
+  | 'type';
+```
+
+### `EventStream`
+
+```ts
+type EventStream = 'list' | 'item' | 'index';
+```
+
+### `User`
+
+```ts
+type User = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  lastActiveAt: Date | null;
+  activated: boolean;
+  displayName: string;
+  description: string;
 };
 ```
 

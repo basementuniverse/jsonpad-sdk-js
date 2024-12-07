@@ -2,9 +2,9 @@ type EventOrderBy = 'createdAt' | 'type';
 
 type EventStream = 'list' | 'item' | 'index';
 
-type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted';
+type IdentityEventType = 'identity-created' | 'identity-updated' | 'identity-deleted' | 'identity-registered' | 'identity-logged-in' | 'identity-logged-out' | 'identity-updated-self' | 'identity-deleted-self';
 
-type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'defaultOrderDirection' | 'activated';
+type IdentityOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'group' | 'activated';
 
 type Metric<T extends string = string> = {
     [key in T]: number;
@@ -17,6 +17,16 @@ type Stats<T extends object> = {
         count: number;
     } & T)[];
 };
+
+type IdentityStats = {
+    events: Stats<{
+        types: Metric<IdentityEventType>;
+    }>;
+};
+
+type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted';
+
+type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'defaultOrderDirection' | 'activated';
 
 type IndexStats = {
     events: Stats<{
@@ -117,6 +127,48 @@ declare class Event {
     });
 }
 
+declare class Identity {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    user: User;
+    name: string;
+    group: string;
+    lastLoginAt: Date | null;
+    activated: boolean;
+    constructor(data: Identity & {
+        createdAt: string;
+        updatedAt: string;
+        user: User & {
+            createdAt: string;
+            updatedAt: string;
+            lastActiveAt: string | null;
+        };
+        lastLoginAt: string | null;
+    });
+}
+
+declare class Index {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    description: string;
+    pathName: string;
+    pointer: string;
+    valueType: IndexValueType;
+    alias: boolean;
+    sorting: boolean;
+    filtering: boolean;
+    searching: boolean;
+    defaultOrderDirection: OrderDirection;
+    activated: boolean;
+    constructor(data: Index & {
+        createdAt: string;
+        updatedAt: string;
+    });
+}
+
 declare class Item {
     id: string;
     createdAt: Date;
@@ -162,29 +214,10 @@ declare class List {
     });
 }
 
-declare class Index {
-    id: string;
-    createdAt: Date;
-    updatedAt: Date;
-    name: string;
-    description: string;
-    pathName: string;
-    pointer: string;
-    valueType: IndexValueType;
-    alias: boolean;
-    sorting: boolean;
-    filtering: boolean;
-    searching: boolean;
-    defaultOrderDirection: OrderDirection;
-    activated: boolean;
-    constructor(data: Index & {
-        createdAt: string;
-        updatedAt: string;
-    });
-}
-
 declare class JSONPad {
     private token;
+    private identityGroup;
+    private identityToken;
     /**
      * Create a new JSONPad client instance
      */
@@ -380,6 +413,89 @@ declare class JSONPad {
      * Delete an index
      */
     deleteIndex(listId: string, indexId: string): Promise<void>;
+    /**
+     * Create a new identity
+     */
+    createIdentity(data: {
+        name: string;
+        group?: string;
+        password: string;
+    }): Promise<Identity>;
+    /**
+     * Fetch a page of identities
+     */
+    fetchIdentities(parameters: Partial<PaginatedRequest<IdentityOrderBy> & {
+        group: string;
+        name: string;
+    }>): Promise<Identity[]>;
+    /**
+     * Fetch a specific identity
+     */
+    fetchIdentity(identityId: string): Promise<Identity>;
+    /**
+     * Fetch stats for an identity
+     */
+    fetchIdentityStats(identityId: string, parameters: Partial<{
+        days: number;
+    }>): Promise<IdentityStats>;
+    /**
+     * Fetch a page of events for an identity
+     */
+    fetchIdentityEvents(identityId: string, parameters: Partial<PaginatedRequest<EventOrderBy> & {
+        startAt: Date;
+        endAt: Date;
+        type: IdentityEventType;
+    }>): Promise<Event[]>;
+    /**
+     * Fetch a specific event for an identity
+     */
+    fetchIdentityEvent(identityId: string, eventId: string): Promise<Event>;
+    /**
+     * Update an identity
+     */
+    updateIdentity(identityId: string, data: {
+        name?: string;
+        password?: string;
+    }): Promise<Identity>;
+    /**
+     * Delete an identity
+     */
+    deleteIdentity(identityId: string): Promise<void>;
+    /**
+     * Register a new identity
+     */
+    registerIdentity(data: {
+        group: string;
+        name: string;
+        password: string;
+    }): Promise<Identity>;
+    /**
+     * Login using an identity
+     */
+    loginIdentity(data: {
+        group: string;
+        name: string;
+        password: string;
+    }): Promise<Identity>;
+    /**
+     * Logout using an identity
+     */
+    logoutIdentity(): Promise<void>;
+    /**
+     * Fetch the current identity
+     */
+    fetchSelfIdentity(): Promise<Identity>;
+    /**
+     * Update the current identity
+     */
+    updateSelfIdentity(data: {
+        name: string;
+        password: string;
+    }): Promise<Identity>;
+    /**
+     * Delete the current identity
+     */
+    deleteSelfIdentity(identityId: string): Promise<void>;
 }
 
 export { Event, type EventOrderBy, type EventStream, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type SearchResult, User, JSONPad as default };
