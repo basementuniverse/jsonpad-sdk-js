@@ -57,7 +57,7 @@ export class JSONPad {
    * Fetch a page of lists
    */
   public async fetchLists(
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<ListOrderBy> & {
         name: string;
         pathName: string;
@@ -95,7 +95,7 @@ export class JSONPad {
   public async searchList(
     listId: string,
     query: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       includeItems: boolean;
       includeData: boolean;
     }>
@@ -131,7 +131,7 @@ export class JSONPad {
    */
   public async fetchListStats(
     listId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       days: number;
     }>
   ): Promise<ListStats> {
@@ -148,7 +148,7 @@ export class JSONPad {
    */
   public async fetchListEvents(
     listId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
@@ -211,7 +211,7 @@ export class JSONPad {
   public async createItem(
     listId: string,
     data: Partial<Item>,
-    parameters: Partial<{
+    parameters?: Partial<{
       generate: boolean;
     }>,
     identity?: IdentityParameter
@@ -234,7 +234,7 @@ export class JSONPad {
    */
   public async fetchItems(
     listId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<ItemOrderBy> & {
         alias: string;
         readonly: boolean;
@@ -265,7 +265,7 @@ export class JSONPad {
    */
   public async fetchItemsData<T = any>(
     listId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<ItemOrderBy> & {
         path: string;
         pointer: string;
@@ -276,12 +276,12 @@ export class JSONPad {
     >,
     identity?: IdentityParameter
   ): Promise<T[]> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
     const result = await request<{ data: T[] }>(
       this.token,
       'GET',
       `/lists/${listId}/items/data${pointerString}`,
-      exclude(parameters, 'pointer'),
+      parameters ? exclude(parameters, 'pointer') : undefined,
       undefined,
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -296,7 +296,7 @@ export class JSONPad {
   public async fetchItem(
     listId: string,
     itemId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       version: string;
       includeData: boolean;
       generate: boolean;
@@ -323,7 +323,7 @@ export class JSONPad {
   public async fetchItemData(
     listId: string,
     itemId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       path: string;
       pointer: string;
       version: string;
@@ -331,13 +331,13 @@ export class JSONPad {
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return (await request<Item>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/data${pointerString}`,
-      exclude(parameters, 'pointer'),
+      parameters ? exclude(parameters, 'pointer') : undefined,
       undefined,
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -350,7 +350,7 @@ export class JSONPad {
   public async fetchItemStats(
     listId: string,
     itemId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       days: number;
     }>
   ): Promise<ItemStats> {
@@ -368,7 +368,7 @@ export class JSONPad {
   public async fetchItemEvents(
     listId: string,
     itemId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
@@ -434,12 +434,12 @@ export class JSONPad {
     listId: string,
     itemId: string,
     data: any,
-    parameters: Partial<{
+    parameters?: Partial<{
       pointer: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
       (await request<ConstructorParameters<typeof Item>[0]>(
@@ -461,12 +461,12 @@ export class JSONPad {
     listId: string,
     itemId: string,
     data: any,
-    parameters: Partial<{
+    parameters?: Partial<{
       pointer: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
       (await request<ConstructorParameters<typeof Item>[0]>(
@@ -488,12 +488,12 @@ export class JSONPad {
     listId: string,
     itemId: string,
     patch: JSONPatch,
-    parameters: Partial<{
+    parameters?: Partial<{
       pointer: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
       (await request<ConstructorParameters<typeof Item>[0]>(
@@ -533,12 +533,12 @@ export class JSONPad {
   public async deleteItemData(
     listId: string,
     itemId: string,
-    parameters: {
+    parameters?: {
       pointer: string;
     },
     identity?: IdentityParameter
   ): Promise<Item> {
-    const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
+    const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
       (await request<ConstructorParameters<typeof Item>[0]>(
@@ -583,7 +583,7 @@ export class JSONPad {
    */
   public async fetchIndexes(
     listId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<IndexOrderBy> & {
         name: string;
         pathName: string;
@@ -619,7 +619,7 @@ export class JSONPad {
   public async fetchIndexStats(
     listId: string,
     indexId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       days: number;
     }>
   ): Promise<IndexStats> {
@@ -637,7 +637,7 @@ export class JSONPad {
   public async fetchIndexEvents(
     listId: string,
     indexId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
@@ -711,8 +711,8 @@ export class JSONPad {
    * Create a new identity
    */
   public async createIdentity(data: {
-    name: string;
     group?: string;
+    name: string;
     password: string;
   }): Promise<Identity> {
     return new Identity(
@@ -730,7 +730,7 @@ export class JSONPad {
    * Fetch a page of identities
    */
   public async fetchIdentities(
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<IdentityOrderBy> & {
         group: string;
         name: string;
@@ -762,7 +762,7 @@ export class JSONPad {
    */
   public async fetchIdentityStats(
     identityId: string,
-    parameters: Partial<{
+    parameters?: Partial<{
       days: number;
     }>
   ): Promise<IdentityStats> {
@@ -779,7 +779,7 @@ export class JSONPad {
    */
   public async fetchIdentityEvents(
     identityId: string,
-    parameters: Partial<
+    parameters?: Partial<
       PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
@@ -843,7 +843,7 @@ export class JSONPad {
    */
   public async registerIdentity(
     data: {
-      group: string;
+      group?: string;
       name: string;
       password: string;
     },
@@ -867,7 +867,7 @@ export class JSONPad {
    */
   public async loginIdentity(
     data: {
-      group: string;
+      group?: string;
       name: string;
       password: string;
     },

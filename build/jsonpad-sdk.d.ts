@@ -235,7 +235,7 @@ declare class JSONPad {
     /**
      * Fetch a page of lists
      */
-    fetchLists(parameters: Partial<PaginatedRequest<ListOrderBy> & {
+    fetchLists(parameters?: Partial<PaginatedRequest<ListOrderBy> & {
         name: string;
         pathName: string;
         pinned: boolean;
@@ -251,20 +251,20 @@ declare class JSONPad {
     /**
      * Search for items in a list
      */
-    searchList(listId: string, query: string, parameters: Partial<{
+    searchList(listId: string, query: string, parameters?: Partial<{
         includeItems: boolean;
         includeData: boolean;
     }>): Promise<SearchResult[]>;
     /**
      * Fetch stats for a list
      */
-    fetchListStats(listId: string, parameters: Partial<{
+    fetchListStats(listId: string, parameters?: Partial<{
         days: number;
     }>): Promise<ListStats>;
     /**
      * Fetch a page of events for a list
      */
-    fetchListEvents(listId: string, parameters: Partial<PaginatedRequest<EventOrderBy> & {
+    fetchListEvents(listId: string, parameters?: Partial<PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
         type: ListEventType;
@@ -284,13 +284,13 @@ declare class JSONPad {
     /**
      * Create a new item
      */
-    createItem(listId: string, data: Partial<Item>, parameters: Partial<{
+    createItem(listId: string, data: Partial<Item>, parameters?: Partial<{
         generate: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Fetch a page of items
      */
-    fetchItems(listId: string, parameters: Partial<PaginatedRequest<ItemOrderBy> & {
+    fetchItems(listId: string, parameters?: Partial<PaginatedRequest<ItemOrderBy> & {
         alias: string;
         readonly: boolean;
         includeData: boolean;
@@ -300,7 +300,7 @@ declare class JSONPad {
      * Fetch a page of items, and only return each item's data or a part of the
      * item's data
      */
-    fetchItemsData<T = any>(listId: string, parameters: Partial<PaginatedRequest<ItemOrderBy> & {
+    fetchItemsData<T = any>(listId: string, parameters?: Partial<PaginatedRequest<ItemOrderBy> & {
         path: string;
         pointer: string;
         alias: string;
@@ -310,7 +310,7 @@ declare class JSONPad {
     /**
      * Fetch a specific item
      */
-    fetchItem(listId: string, itemId: string, parameters: Partial<{
+    fetchItem(listId: string, itemId: string, parameters?: Partial<{
         version: string;
         includeData: boolean;
         generate: boolean;
@@ -319,7 +319,7 @@ declare class JSONPad {
      * Fetch a specific item, and only return the item's data or a part of the
      * item's data
      */
-    fetchItemData(listId: string, itemId: string, parameters: Partial<{
+    fetchItemData(listId: string, itemId: string, parameters?: Partial<{
         path: string;
         pointer: string;
         version: string;
@@ -328,13 +328,13 @@ declare class JSONPad {
     /**
      * Fetch stats for an item
      */
-    fetchItemStats(listId: string, itemId: string, parameters: Partial<{
+    fetchItemStats(listId: string, itemId: string, parameters?: Partial<{
         days: number;
     }>): Promise<ItemStats>;
     /**
      * Fetch a page of events for an item
      */
-    fetchItemEvents(listId: string, itemId: string, parameters: Partial<PaginatedRequest<EventOrderBy> & {
+    fetchItemEvents(listId: string, itemId: string, parameters?: Partial<PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
         type: ItemEventType;
@@ -350,19 +350,19 @@ declare class JSONPad {
     /**
      * Update an item's data
      */
-    updateItemData(listId: string, itemId: string, data: any, parameters: Partial<{
+    updateItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
         pointer: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Replace an item's data
      */
-    replaceItemData(listId: string, itemId: string, data: any, parameters: Partial<{
+    replaceItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
         pointer: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Patch an item's data
      */
-    patchItemData(listId: string, itemId: string, patch: JSONPatch, parameters: Partial<{
+    patchItemData(listId: string, itemId: string, patch: JSONPatch, parameters?: Partial<{
         pointer: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
@@ -372,7 +372,7 @@ declare class JSONPad {
     /**
      * Delete part of an item's data
      */
-    deleteItemData(listId: string, itemId: string, parameters: {
+    deleteItemData(listId: string, itemId: string, parameters?: {
         pointer: string;
     }, identity?: IdentityParameter): Promise<Item>;
     /**
@@ -382,7 +382,7 @@ declare class JSONPad {
     /**
      * Fetch a page of indexes
      */
-    fetchIndexes(listId: string, parameters: Partial<PaginatedRequest<IndexOrderBy> & {
+    fetchIndexes(listId: string, parameters?: Partial<PaginatedRequest<IndexOrderBy> & {
         name: string;
         pathName: string;
         valueType: IndexValueType;
@@ -396,13 +396,13 @@ declare class JSONPad {
     /**
      * Fetch stats for an index
      */
-    fetchIndexStats(listId: string, indexId: string, parameters: Partial<{
+    fetchIndexStats(listId: string, indexId: string, parameters?: Partial<{
         days: number;
     }>): Promise<IndexStats>;
     /**
      * Fetch a page of events for an index
      */
-    fetchIndexEvents(listId: string, indexId: string, parameters: Partial<PaginatedRequest<EventOrderBy> & {
+    fetchIndexEvents(listId: string, indexId: string, parameters?: Partial<PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
         type: IndexEventType;
@@ -423,14 +423,14 @@ declare class JSONPad {
      * Create a new identity
      */
     createIdentity(data: {
-        name: string;
         group?: string;
+        name: string;
         password: string;
     }): Promise<Identity>;
     /**
      * Fetch a page of identities
      */
-    fetchIdentities(parameters: Partial<PaginatedRequest<IdentityOrderBy> & {
+    fetchIdentities(parameters?: Partial<PaginatedRequest<IdentityOrderBy> & {
         group: string;
         name: string;
     }>): Promise<Identity[]>;
@@ -441,13 +441,13 @@ declare class JSONPad {
     /**
      * Fetch stats for an identity
      */
-    fetchIdentityStats(identityId: string, parameters: Partial<{
+    fetchIdentityStats(identityId: string, parameters?: Partial<{
         days: number;
     }>): Promise<IdentityStats>;
     /**
      * Fetch a page of events for an identity
      */
-    fetchIdentityEvents(identityId: string, parameters: Partial<PaginatedRequest<EventOrderBy> & {
+    fetchIdentityEvents(identityId: string, parameters?: Partial<PaginatedRequest<EventOrderBy> & {
         startAt: Date;
         endAt: Date;
         type: IdentityEventType;
@@ -471,7 +471,7 @@ declare class JSONPad {
      * Register a new identity
      */
     registerIdentity(data: {
-        group: string;
+        group?: string;
         name: string;
         password: string;
     }, identity?: IdentityParameter): Promise<Identity>;
@@ -479,7 +479,7 @@ declare class JSONPad {
      * Login using an identity
      */
     loginIdentity(data: {
-        group: string;
+        group?: string;
         name: string;
         password: string;
     }, identity?: IdentityParameter): Promise<[Identity, string | undefined]>;
