@@ -280,7 +280,10 @@ declare class JSONPad {
      */
     createItem(listId: string, data: Partial<Item>, parameters: Partial<{
         generate: boolean;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Fetch a page of items
      */
@@ -289,7 +292,10 @@ declare class JSONPad {
         readonly: boolean;
         includeData: boolean;
         [key: string]: any;
-    }>): Promise<Item[]>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item[]>;
     /**
      * Fetch a page of items, and only return each item's data or a part of the
      * item's data
@@ -300,7 +306,10 @@ declare class JSONPad {
         alias: string;
         readonly: boolean;
         [key: string]: any;
-    }>): Promise<T[]>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<T[]>;
     /**
      * Fetch a specific item
      */
@@ -308,7 +317,10 @@ declare class JSONPad {
         version: string;
         includeData: boolean;
         generate: boolean;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Fetch a specific item, and only return the item's data or a part of the
      * item's data
@@ -318,7 +330,10 @@ declare class JSONPad {
         pointer: string;
         version: string;
         generate: boolean;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Fetch stats for an item
      */
@@ -340,34 +355,52 @@ declare class JSONPad {
     /**
      * Update an item
      */
-    updateItem(listId: string, itemId: string, data: Partial<Item>): Promise<Item>;
+    updateItem(listId: string, itemId: string, data: Partial<Item>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Update an item's data
      */
     updateItemData(listId: string, itemId: string, data: any, parameters: Partial<{
         pointer: string;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Replace an item's data
      */
     replaceItemData(listId: string, itemId: string, data: any, parameters: Partial<{
         pointer: string;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Patch an item's data
      */
     patchItemData(listId: string, itemId: string, patch: JSONPatch, parameters: Partial<{
         pointer: string;
-    }>): Promise<Item>;
+    }>, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Item>;
     /**
      * Delete an item
      */
-    deleteItem(listId: string, itemId: string): Promise<void>;
+    deleteItem(listId: string, itemId: string, identity?: {
+        group?: string;
+        token: string;
+    }): Promise<void>;
     /**
      * Delete part of an item's data
      */
     deleteItemData(listId: string, itemId: string, parameters: {
         pointer: string;
+    }, identity?: {
+        group?: string;
+        token: string;
     }): Promise<Item>;
     /**
      * Create a new index
@@ -468,6 +501,9 @@ declare class JSONPad {
         group: string;
         name: string;
         password: string;
+    }, identity?: {
+        group?: string;
+        token: string;
     }): Promise<Identity>;
     /**
      * Login using an identity
@@ -476,26 +512,41 @@ declare class JSONPad {
         group: string;
         name: string;
         password: string;
+    }, identity?: {
+        group?: string;
+        token: string;
     }): Promise<Identity>;
     /**
      * Logout using an identity
      */
-    logoutIdentity(): Promise<void>;
+    logoutIdentity(identity?: {
+        group?: string;
+        token: string;
+    }): Promise<void>;
     /**
      * Fetch the current identity
      */
-    fetchSelfIdentity(): Promise<Identity>;
+    fetchSelfIdentity(identity?: {
+        group?: string;
+        token: string;
+    }): Promise<Identity>;
     /**
      * Update the current identity
      */
     updateSelfIdentity(data: {
         name: string;
         password: string;
+    }, identity?: {
+        group?: string;
+        token: string;
     }): Promise<Identity>;
     /**
      * Delete the current identity
      */
-    deleteSelfIdentity(identityId: string): Promise<void>;
+    deleteSelfIdentity(identity?: {
+        group?: string;
+        token: string;
+    }): Promise<void>;
 }
 
 export { Event, type EventOrderBy, type EventStream, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type SearchResult, User, JSONPad as default };
