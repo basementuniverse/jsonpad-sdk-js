@@ -213,7 +213,11 @@ export class JSONPad {
     data: Partial<Item>,
     parameters: Partial<{
       generate: boolean;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     return new Item(
       await request<ConstructorParameters<typeof Item>[0]>(
@@ -222,8 +226,8 @@ export class JSONPad {
         `/lists/${listId}/items`,
         parameters,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -240,7 +244,11 @@ export class JSONPad {
         includeData: boolean;
         [key: string]: any;
       }
-    >
+    >,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item[]> {
     const result = await request<{
       data: ConstructorParameters<typeof Item>[0][];
@@ -250,8 +258,8 @@ export class JSONPad {
       `/lists/${listId}/items`,
       parameters,
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
 
     return result.data.map(datum => new Item(datum));
@@ -271,7 +279,11 @@ export class JSONPad {
         readonly: boolean;
         [key: string]: any;
       }
-    >
+    >,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<T[]> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
     const result = await request<{ data: T[] }>(
@@ -280,8 +292,8 @@ export class JSONPad {
       `/lists/${listId}/items/data${pointerString}`,
       exclude(parameters, 'pointer'),
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
 
     return result.data;
@@ -297,7 +309,11 @@ export class JSONPad {
       version: string;
       includeData: boolean;
       generate: boolean;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     return new Item(
       await request<ConstructorParameters<typeof Item>[0]>(
@@ -306,8 +322,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}`,
         parameters,
         undefined,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -324,7 +340,11 @@ export class JSONPad {
       pointer: string;
       version: string;
       generate: boolean;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
@@ -334,8 +354,8 @@ export class JSONPad {
       `/lists/${listId}/items/${itemId}/data${pointerString}`,
       exclude(parameters, 'pointer'),
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
   }
 
@@ -406,7 +426,11 @@ export class JSONPad {
   public async updateItem(
     listId: string,
     itemId: string,
-    data: Partial<Item>
+    data: Partial<Item>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     return new Item(
       await request<ConstructorParameters<typeof Item>[0]>(
@@ -415,8 +439,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}`,
         undefined,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -430,7 +454,11 @@ export class JSONPad {
     data: any,
     parameters: Partial<{
       pointer: string;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
@@ -441,8 +469,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -456,7 +484,11 @@ export class JSONPad {
     data: any,
     parameters: Partial<{
       pointer: string;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
@@ -467,8 +499,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -482,7 +514,11 @@ export class JSONPad {
     patch: JSONPatch,
     parameters: Partial<{
       pointer: string;
-    }>
+    }>,
+    identity?: {
+      group?: string;
+      token: string;
+    }
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
@@ -493,8 +529,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         patch,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -502,15 +538,22 @@ export class JSONPad {
   /**
    * Delete an item
    */
-  public async deleteItem(listId: string, itemId: string) {
+  public async deleteItem(
+    listId: string,
+    itemId: string,
+    identity?: {
+      group?: string;
+      token: string;
+    }
+  ) {
     await request(
       this.token,
       'DELETE',
       `/lists/${listId}/items/${itemId}`,
       undefined,
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
   }
 
@@ -522,6 +565,10 @@ export class JSONPad {
     itemId: string,
     parameters: {
       pointer: string;
+    },
+    identity?: {
+      group?: string;
+      token: string;
     }
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
@@ -533,8 +580,8 @@ export class JSONPad {
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         undefined,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -827,11 +874,17 @@ export class JSONPad {
   /**
    * Register a new identity
    */
-  public async registerIdentity(data: {
-    group: string;
-    name: string;
-    password: string;
-  }): Promise<Identity> {
+  public async registerIdentity(
+    data: {
+      group: string;
+      name: string;
+      password: string;
+    },
+    identity?: {
+      group?: string;
+      token: string;
+    }
+  ): Promise<Identity> {
     return new Identity(
       await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
@@ -839,8 +892,8 @@ export class JSONPad {
         '/identities/register',
         undefined,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -848,11 +901,17 @@ export class JSONPad {
   /**
    * Login using an identity
    */
-  public async loginIdentity(data: {
-    group: string;
-    name: string;
-    password: string;
-  }): Promise<Identity> {
+  public async loginIdentity(
+    data: {
+      group: string;
+      name: string;
+      password: string;
+    },
+    identity?: {
+      group?: string;
+      token: string;
+    }
+  ): Promise<Identity> {
     const response = await request<
       ConstructorParameters<typeof Identity>[0] & { token: string }
     >(
@@ -861,8 +920,8 @@ export class JSONPad {
       '/identities/login',
       undefined,
       data,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
 
     this.identityGroup = response.group || undefined;
@@ -878,15 +937,15 @@ export class JSONPad {
   /**
    * Logout using an identity
    */
-  public async logoutIdentity() {
+  public async logoutIdentity(identity?: { group?: string; token: string }) {
     await request(
       this.token,
       'POST',
       '/identities/logout',
       undefined,
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
 
     this.identityGroup = undefined;
@@ -896,7 +955,10 @@ export class JSONPad {
   /**
    * Fetch the current identity
    */
-  public async fetchSelfIdentity(): Promise<Identity> {
+  public async fetchSelfIdentity(identity?: {
+    group?: string;
+    token: string;
+  }): Promise<Identity> {
     return new Identity(
       await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
@@ -904,8 +966,8 @@ export class JSONPad {
         '/identities/self',
         undefined,
         undefined,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -913,10 +975,16 @@ export class JSONPad {
   /**
    * Update the current identity
    */
-  public async updateSelfIdentity(data: {
-    name: string;
-    password: string;
-  }): Promise<Identity> {
+  public async updateSelfIdentity(
+    data: {
+      name: string;
+      password: string;
+    },
+    identity?: {
+      group?: string;
+      token: string;
+    }
+  ): Promise<Identity> {
     return new Identity(
       await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
@@ -924,8 +992,8 @@ export class JSONPad {
         '/identities/self',
         undefined,
         data,
-        this.identityGroup,
-        this.identityToken
+        identity?.group ?? this.identityGroup,
+        identity?.token ?? this.identityToken
       )
     );
   }
@@ -933,15 +1001,18 @@ export class JSONPad {
   /**
    * Delete the current identity
    */
-  public async deleteSelfIdentity(identityId: string) {
+  public async deleteSelfIdentity(identity?: {
+    group?: string;
+    token: string;
+  }) {
     await request(
       this.token,
       'DELETE',
       '/identities/self',
       undefined,
       undefined,
-      this.identityGroup,
-      this.identityToken
+      identity?.group ?? this.identityGroup,
+      identity?.token ?? this.identityToken
     );
   }
 
