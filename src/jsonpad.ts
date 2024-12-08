@@ -3,6 +3,7 @@ import {
   EventOrderBy,
   IdentityEventType,
   IdentityOrderBy,
+  IdentityParameter,
   IdentityStats,
   IndexEventType,
   IndexOrderBy,
@@ -23,13 +24,14 @@ import exclude from './utilities/exclude';
 import request from './utilities/request';
 
 export class JSONPad {
-  private identityGroup: string | undefined;
-  private identityToken: string | undefined;
-
   /**
    * Create a new JSONPad client instance
    */
-  public constructor(private token: string) {}
+  public constructor(
+    private token: string,
+    private identityGroup?: string,
+    private identityToken?: string
+  ) {}
 
   // ---------------------------------------------------------------------------
   // LISTS
@@ -41,13 +43,13 @@ export class JSONPad {
    */
   public async createList(data: Partial<List>): Promise<List> {
     return new List(
-      await request<ConstructorParameters<typeof List>[0]>(
+      (await request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'POST',
         '/lists',
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -71,7 +73,7 @@ export class JSONPad {
       data: ConstructorParameters<typeof List>[0][];
     }>(this.token, 'GET', '/lists', parameters);
 
-    return result.data.map(datum => new List(datum));
+    return result!.data.map(datum => new List(datum));
   }
 
   /**
@@ -79,11 +81,11 @@ export class JSONPad {
    */
   public async fetchList(listId: string): Promise<List> {
     return new List(
-      await request<ConstructorParameters<typeof List>[0]>(
+      (await request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'GET',
         `/lists/${listId}`
-      )
+      ))!
     );
   }
 
@@ -98,23 +100,21 @@ export class JSONPad {
       includeData: boolean;
     }>
   ): Promise<SearchResult[]> {
-    return (
-      await request<
-        ({
-          relevance: number;
-        } & (
-          | {
-              id: string;
-            }
-          | {
-              item: ConstructorParameters<typeof Item>[0];
-            }
-        ))[]
-      >(this.token, 'GET', `/lists/${listId}/search`, {
-        query,
-        ...parameters,
-      })
-    ).map((result): SearchResult => {
+    return (await request<
+      ({
+        relevance: number;
+      } & (
+        | {
+            id: string;
+          }
+        | {
+            item: ConstructorParameters<typeof Item>[0];
+          }
+      ))[]
+    >(this.token, 'GET', `/lists/${listId}/search`, {
+      query,
+      ...parameters,
+    }))!.map((result): SearchResult => {
       if ('item' in result) {
         return {
           relevance: result.relevance,
@@ -135,12 +135,12 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<ListStats> {
-    return await request<ListStats>(
+    return (await request<ListStats>(
       this.token,
       'GET',
       `/lists/${listId}/stats`,
       parameters
-    );
+    ))!;
   }
 
   /**
@@ -160,7 +160,7 @@ export class JSONPad {
       data: ConstructorParameters<typeof Event>[0][];
     }>(this.token, 'GET', `/lists/${listId}/events`, parameters);
 
-    return result.data.map(datum => new Event(datum));
+    return result!.data.map(datum => new Event(datum));
   }
 
   /**
@@ -168,11 +168,11 @@ export class JSONPad {
    */
   public async fetchListEvent(listId: string, eventId: string): Promise<Event> {
     return new Event(
-      await request<ConstructorParameters<typeof Event>[0]>(
+      (await request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/events/${eventId}`
-      )
+      ))!
     );
   }
 
@@ -181,13 +181,13 @@ export class JSONPad {
    */
   public async updateList(listId: string, data: Partial<List>): Promise<List> {
     return new List(
-      await request<ConstructorParameters<typeof List>[0]>(
+      (await request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}`,
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -214,21 +214,18 @@ export class JSONPad {
     parameters: Partial<{
       generate: boolean;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items`,
         parameters,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -245,10 +242,7 @@ export class JSONPad {
         [key: string]: any;
       }
     >,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item[]> {
     const result = await request<{
       data: ConstructorParameters<typeof Item>[0][];
@@ -258,11 +252,11 @@ export class JSONPad {
       `/lists/${listId}/items`,
       parameters,
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
 
-    return result.data.map(datum => new Item(datum));
+    return result!.data.map(datum => new Item(datum));
   }
 
   /**
@@ -280,10 +274,7 @@ export class JSONPad {
         [key: string]: any;
       }
     >,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<T[]> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
     const result = await request<{ data: T[] }>(
@@ -292,11 +283,11 @@ export class JSONPad {
       `/lists/${listId}/items/data${pointerString}`,
       exclude(parameters, 'pointer'),
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
 
-    return result.data;
+    return result!.data;
   }
 
   /**
@@ -310,21 +301,18 @@ export class JSONPad {
       includeData: boolean;
       generate: boolean;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}`,
         parameters,
         undefined,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -341,22 +329,19 @@ export class JSONPad {
       version: string;
       generate: boolean;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
-    return await request<Item>(
+    return (await request<Item>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/data${pointerString}`,
       exclude(parameters, 'pointer'),
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
-    );
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    ))!;
   }
 
   /**
@@ -369,12 +354,12 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<ItemStats> {
-    return await request<ItemStats>(
+    return (await request<ItemStats>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/stats`,
       parameters
-    );
+    ))!;
   }
 
   /**
@@ -400,7 +385,7 @@ export class JSONPad {
       parameters
     );
 
-    return result.data.map(datum => new Event(datum));
+    return result!.data.map(datum => new Event(datum));
   }
 
   /**
@@ -412,11 +397,11 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      await request<ConstructorParameters<typeof Event>[0]>(
+      (await request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}/events/${eventId}`
-      )
+      ))!
     );
   }
 
@@ -427,21 +412,18 @@ export class JSONPad {
     listId: string,
     itemId: string,
     data: Partial<Item>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}`,
         undefined,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -455,23 +437,20 @@ export class JSONPad {
     parameters: Partial<{
       pointer: string;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -485,23 +464,20 @@ export class JSONPad {
     parameters: Partial<{
       pointer: string;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -515,23 +491,20 @@ export class JSONPad {
     parameters: Partial<{
       pointer: string;
     }>,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         patch,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -541,10 +514,7 @@ export class JSONPad {
   public async deleteItem(
     listId: string,
     itemId: string,
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ) {
     await request(
       this.token,
@@ -552,8 +522,8 @@ export class JSONPad {
       `/lists/${listId}/items/${itemId}`,
       undefined,
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
   }
 
@@ -566,23 +536,20 @@ export class JSONPad {
     parameters: {
       pointer: string;
     },
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      await request<ConstructorParameters<typeof Item>[0]>(
+      (await request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'DELETE',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
         undefined,
         undefined,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -601,13 +568,13 @@ export class JSONPad {
     data: Partial<Index>
   ): Promise<Index> {
     return new Index(
-      await request<ConstructorParameters<typeof Index>[0]>(
+      (await request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/indexes`,
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -630,7 +597,7 @@ export class JSONPad {
       data: ConstructorParameters<typeof Index>[0][];
     }>(this.token, 'GET', `/lists/${listId}/indexes`, parameters);
 
-    return result.data.map(datum => new Index(datum));
+    return result!.data.map(datum => new Index(datum));
   }
 
   /**
@@ -638,11 +605,11 @@ export class JSONPad {
    */
   public async fetchIndex(listId: string, indexId: string): Promise<Index> {
     return new Index(
-      await request<ConstructorParameters<typeof Index>[0]>(
+      (await request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/indexes/${indexId}`
-      )
+      ))!
     );
   }
 
@@ -656,12 +623,12 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<IndexStats> {
-    return await request<IndexStats>(
+    return (await request<IndexStats>(
       this.token,
       'GET',
       `/lists/${listId}/indexes/${indexId}/stats`,
       parameters
-    );
+    ))!;
   }
 
   /**
@@ -687,7 +654,7 @@ export class JSONPad {
       parameters
     );
 
-    return result.data.map(datum => new Event(datum));
+    return result!.data.map(datum => new Event(datum));
   }
 
   /**
@@ -699,11 +666,11 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      await request<ConstructorParameters<typeof Event>[0]>(
+      (await request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/indexes/${indexId}/events/${eventId}`
-      )
+      ))!
     );
   }
 
@@ -716,13 +683,13 @@ export class JSONPad {
     data: Partial<Index>
   ): Promise<Index> {
     return new Index(
-      await request<ConstructorParameters<typeof Index>[0]>(
+      (await request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'PATCH',
         `/lists/${listId}/indexes/${indexId}`,
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -749,13 +716,13 @@ export class JSONPad {
     password: string;
   }): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'POST',
         '/identities',
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -774,7 +741,7 @@ export class JSONPad {
       data: ConstructorParameters<typeof Identity>[0][];
     }>(this.token, 'GET', '/identities', parameters);
 
-    return result.data.map(datum => new Identity(datum));
+    return result!.data.map(datum => new Identity(datum));
   }
 
   /**
@@ -782,11 +749,11 @@ export class JSONPad {
    */
   public async fetchIdentity(identityId: string): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'GET',
         `/identities/${identityId}`
-      )
+      ))!
     );
   }
 
@@ -799,12 +766,12 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<IdentityStats> {
-    return await request<IdentityStats>(
+    return (await request<IdentityStats>(
       this.token,
       'GET',
       `/identities/${identityId}/stats`,
       parameters
-    );
+    ))!;
   }
 
   /**
@@ -824,7 +791,7 @@ export class JSONPad {
       data: ConstructorParameters<typeof Event>[0][];
     }>(this.token, 'GET', `/identities/${identityId}/events`, parameters);
 
-    return result.data.map(datum => new Event(datum));
+    return result!.data.map(datum => new Event(datum));
   }
 
   /**
@@ -835,11 +802,11 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      await request<ConstructorParameters<typeof Event>[0]>(
+      (await request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/identities/${identityId}/events/${eventId}`
-      )
+      ))!
     );
   }
 
@@ -854,13 +821,13 @@ export class JSONPad {
     }
   ): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'PUT',
         `/identities/${identityId}`,
         undefined,
         data
-      )
+      ))!
     );
   }
 
@@ -880,21 +847,18 @@ export class JSONPad {
       name: string;
       password: string;
     },
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'POST',
         '/identities/register',
         undefined,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -907,12 +871,9 @@ export class JSONPad {
       name: string;
       password: string;
     },
-    identity?: {
-      group?: string;
-      token: string;
-    }
-  ): Promise<Identity> {
-    const response = await request<
+    identity?: IdentityParameter
+  ): Promise<[Identity, string | undefined]> {
+    const response = (await request<
       ConstructorParameters<typeof Identity>[0] & { token: string }
     >(
       this.token,
@@ -920,32 +881,35 @@ export class JSONPad {
       '/identities/login',
       undefined,
       data,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
-    );
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    ))!;
 
     this.identityGroup = response.group || undefined;
     this.identityToken = response.token || undefined;
 
-    return new Identity(
-      exclude(response as any, 'token') as ConstructorParameters<
-        typeof Identity
-      >[0]
-    );
+    return [
+      new Identity(
+        exclude(response as any, 'token') as ConstructorParameters<
+          typeof Identity
+        >[0]
+      ),
+      this.identityToken,
+    ];
   }
 
   /**
    * Logout using an identity
    */
-  public async logoutIdentity(identity?: { group?: string; token: string }) {
+  public async logoutIdentity(identity?: IdentityParameter) {
     await request(
       this.token,
       'POST',
       '/identities/logout',
       undefined,
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
 
     this.identityGroup = undefined;
@@ -955,20 +919,19 @@ export class JSONPad {
   /**
    * Fetch the current identity
    */
-  public async fetchSelfIdentity(identity?: {
-    group?: string;
-    token: string;
-  }): Promise<Identity> {
+  public async fetchSelfIdentity(
+    identity?: IdentityParameter
+  ): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'GET',
         '/identities/self',
         undefined,
         undefined,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
@@ -980,39 +943,33 @@ export class JSONPad {
       name: string;
       password: string;
     },
-    identity?: {
-      group?: string;
-      token: string;
-    }
+    identity?: IdentityParameter
   ): Promise<Identity> {
     return new Identity(
-      await request<ConstructorParameters<typeof Identity>[0]>(
+      (await request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'PUT',
         '/identities/self',
         undefined,
         data,
-        identity?.group ?? this.identityGroup,
-        identity?.token ?? this.identityToken
-      )
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      ))!
     );
   }
 
   /**
    * Delete the current identity
    */
-  public async deleteSelfIdentity(identity?: {
-    group?: string;
-    token: string;
-  }) {
+  public async deleteSelfIdentity(identity?: IdentityParameter) {
     await request(
       this.token,
       'DELETE',
       '/identities/self',
       undefined,
       undefined,
-      identity?.group ?? this.identityGroup,
-      identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
   }
 

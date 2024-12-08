@@ -4,7 +4,7 @@ export class List {
   public id!: string;
   public createdAt!: Date;
   public updatedAt!: Date;
-  public user!: User;
+  public user?: User;
   public name!: string;
   public description!: string;
   public pathName!: string;
@@ -23,7 +23,7 @@ export class List {
     data: List & {
       createdAt: string;
       updatedAt: string;
-      user: User & {
+      user?: User & {
         createdAt: string;
         updatedAt: string;
         lastActiveAt: string | null;
@@ -34,7 +34,7 @@ export class List {
       ...data,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
-      user: new User(data.user),
+      user: data.user ? new User(data.user) : undefined,
     });
   }
 }

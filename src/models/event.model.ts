@@ -10,7 +10,7 @@ export class Event {
   public id!: string;
   public createdAt!: Date;
   public updatedAt!: Date;
-  public user!: User;
+  public user?: User;
   public modelId!: string;
   public stream!: EventStream;
   public type!: ListEventType | ItemEventType | IndexEventType;
@@ -22,7 +22,7 @@ export class Event {
     data: Event & {
       createdAt: string;
       updatedAt: string;
-      user: User & {
+      user?: User & {
         createdAt: string;
         updatedAt: string;
         lastActiveAt: string | null;
@@ -33,7 +33,7 @@ export class Event {
       ...data,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
-      user: new User(data.user),
+      user: data.user ? new User(data.user) : undefined,
     });
   }
 }

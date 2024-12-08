@@ -39,6 +39,18 @@ const jsonpad = new JSONPad.default('your-api-token');
 </script>
 ```
 
+You can also pass in an identity group and token if you want to authenticate as a specific identity:
+
+_(Note that the identity group and token will also be automatically populated when you log in as an identity)_
+
+```ts
+const jsonpad = new JSONPad(
+  'your-api-token',
+  'your-identity-group',
+  'your-identity-token'
+);
+```
+
 ### Create a list
 
 ```ts
@@ -521,7 +533,10 @@ const identity: Identity = await jsonpad.registerIdentity({
 ### Login using an identity
 
 ```ts
-const identity: Identity = await jsonpad.loginIdentity({
+let identity: Identity;
+let token: string;
+
+[identity, token] = await jsonpad.loginIdentity({
   name: 'Alice',
   password: 'secret',
 });
@@ -577,6 +592,7 @@ import JSONPad, {
   IdentityEventType,
   IdentityOrderBy,
   IdentityStats,
+  IdentityParameter,
   Event,
   EventOrderBy,
   EventStream,
@@ -855,6 +871,16 @@ type IdentityStats = {
     }[];
   };
 }
+```
+
+### `IdentityParameter`
+
+```ts
+type IdentityParameter = {
+  ignore?: boolean;
+  group?: string;
+  token?: string;
+};
 ```
 
 ### `Event`

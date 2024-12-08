@@ -1,6 +1,6 @@
 import * as constants from '../constants';
 
-export default async function request<T>(
+export default async function request<T = any>(
   token: string,
   method: string,
   path: string,
@@ -8,7 +8,7 @@ export default async function request<T>(
   body?: any,
   identityGroup?: string,
   identityToken?: string
-): Promise<T> {
+): Promise<T | null> {
   const parametersString = parameters
     ? new URLSearchParams({
         ...Object.fromEntries(
@@ -43,6 +43,10 @@ export default async function request<T>(
 
   if (!response.ok) {
     throw new Error(await response.text());
+  }
+
+  if (response.status === 204) {
+    return null;
   }
 
   return await response.json();
