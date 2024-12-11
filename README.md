@@ -1,6 +1,6 @@
 # JSONPad SDK
 
-This package allows you to connect to JSONPad and manage your lists, items and indexes without needing to use the RESTful API directly.
+This package allows you to connect to JSONPad and manage your lists, items, indexes, and identities without needing to use the RESTful API directly.
 
 ## Installation
 
@@ -39,9 +39,7 @@ const jsonpad = new JSONPad.default('your-api-token');
 </script>
 ```
 
-You can also pass in an identity group and token if you want to authenticate as a specific identity:
-
-_(Note that the identity group and token will also be automatically populated when you log in as an identity)_
+You can also pass in an identity group and token if you want to cache them in the SDK instance for subsequent requests:
 
 ```ts
 const jsonpad = new JSONPad(
@@ -71,7 +69,7 @@ const list: List = await jsonpad.createList({
 ### Fetch all lists
 
 ```ts
-const lists: List[] = await jsonpad.fetchLists({
+const response: PaginatedResponse<List> = await jsonpad.fetchLists({
   page: 1,
   limit: 10,
   order: 'createdAt',
@@ -112,7 +110,7 @@ const stats: ListStats = await jsonpad.fetchListStats(
 ### Fetch list events
 
 ```ts
-const events: Event[] = await jsonpad.fetchListEvents(
+const response: PaginatedResponse<Event> = await jsonpad.fetchListEvents(
   'list-id',
   {
     page: 1,
@@ -152,30 +150,56 @@ await jsonpad.deleteList('list-id');
 ### Create an item
 
 ```ts
-const item: Item = await jsonpad.createItem('list-id', {
-  data: {
-    name: 'Alice',
-    age: 30,
+const item: Item = await jsonpad.createItem(
+  'list-id',
+  {
+    data: {
+      name: 'Alice',
+      age: 30,
+    },
+    description: 'This is Alice',
+  }
+);
+```
+
+When creating, updating, fetching, or deleting items, you can also optionally pass in identity parameters if you want to authenticate as an identity or override cached identity credentials:
+
+```ts
+const item: Item = await jsonpad.createItem(
+  'list-id',
+  {
+    data: {
+      name: 'Alice',
+      age: 30,
+    },
+    description: 'This is Alice',
   },
-  description: 'This is Alice',
-});
+  {
+    ignore: true, // if true, don't send identity credentials with the request
+    group: 'my-group', // set the identity group, or override cached identity group
+    token: 'my-token', // set the identity token, or override cached identity token
+  }
+);
 ```
 
 ### Fetch all items
 
 ```ts
-const items: Item[] = await jsonpad.fetchItems('list-id', {
-  page: 1,
-  limit: 10,
-  order: 'createdAt',
-  direction: 'desc',
-});
+const response: PaginatedResponse<Item> = await jsonpad.fetchItems(
+  'list-id',
+  {
+    page: 1,
+    limit: 10,
+    order: 'createdAt',
+    direction: 'desc',
+  }
+);
 ```
 
 ### Fetch all items data
 
 ```ts
-const itemsData: any[] = await jsonpad.fetchItemsData(
+const response: PaginatedResponse<any> = await jsonpad.fetchItemsData(
   'list-id',
   {
     page: 1,
@@ -232,7 +256,7 @@ const stats: ItemStats = await jsonpad.fetchItemStats(
 ### Fetch item events
 
 ```ts
-const events: Event[] = await jsonpad.fetchItemEvents(
+const response: PaginatedResponse<Event> = await jsonpad.fetchItemEvents(
   'list-id',
   'item-id',
   {
@@ -357,12 +381,15 @@ const index: Index = await jsonpad.createIndex('list-id', {
 ### Fetch all indexes
 
 ```ts
-const indexes: Index[] = await jsonpad.fetchIndexes('list-id', {
-  page: 1,
-  limit: 10,
-  order: 'createdAt',
-  direction: 'desc',
-});
+const response: PaginatedResponse<Index> = await jsonpad.fetchIndexes(
+  'list-id',
+  {
+    page: 1,
+    limit: 10,
+    order: 'createdAt',
+    direction: 'desc',
+  }
+);
 ```
 
 ### Fetch an index
@@ -389,7 +416,7 @@ const stats: IndexStats = await jsonpad.fetchIndexStats(
 ### Fetch index events
 
 ```ts
-const events: Event[] = await jsonpad.fetchIndexEvents(
+const response: PaginatedResponse<Event> = await jsonpad.fetchIndexEvents(
   'list-id',
   'index-id',
   {
@@ -452,7 +479,7 @@ const identity: Identity = await jsonpad.createIdentity({
 ### Fetch all identities
 
 ```ts
-const identities: Identity[] = await jsonpad.fetchIdentities({
+const response: PaginatedResponse<Identity> = await jsonpad.fetchIdentities({
   page: 1,
   limit: 10,
   order: 'createdAt',
@@ -480,7 +507,7 @@ const stats: IdentityStats = await jsonpad.fetchIdentityStats(
 ### Fetch identity events
 
 ```ts
-const events: Event[] = await jsonpad.fetchIdentityEvents(
+const response: PaginatedResponse<Event> = await jsonpad.fetchIdentityEvents(
   'identity-id',
   {
     page: 1,
@@ -524,8 +551,8 @@ await jsonpad.deleteIdentity('identity-id');
 
 ```ts
 const identity: Identity = await jsonpad.registerIdentity({
-  name: 'Alice',
   group: 'my-group',
+  name: 'Alice',
   password: 'secret',
 });
 ```
@@ -537,10 +564,13 @@ let identity: Identity;
 let token: string;
 
 [identity, token] = await jsonpad.loginIdentity({
+  group: 'my-group',
   name: 'Alice',
   password: 'secret',
 });
 ```
+
+The identity group and token will be cached in the SDK instance and used for subsequent requests.
 
 ### Logout from an identity
 
@@ -599,6 +629,7 @@ import JSONPad, {
   User,
   OrderDirection,
   PaginatedRequest,
+  PaginatedResponse,
   SearchResult,
 } from '@basementuniverse/jsonpad-sdk';
 ```
@@ -942,6 +973,17 @@ type PaginatedRequest<T extends string> = {
   limit: number;
   order: T;
   direction: OrderDirection;
+};
+```
+
+### `PaginatedResponse`
+
+```ts
+type PaginatedResponse<T = any> = {
+  page: number;
+  limit: number;
+  total: number;
+  data: T[];
 };
 ```
 

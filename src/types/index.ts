@@ -17,5 +17,6 @@ export * from './list-order-by';
 export * from './list-stats';
 export * from './order-direction';
 export * from './paginated-request';
+export * from './paginated-response';
 export * from './search-result';
 export * from './stats';

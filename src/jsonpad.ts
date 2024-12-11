@@ -18,6 +18,7 @@ import {
   ListStats,
   OrderDirection,
   PaginatedRequest,
+  PaginatedResponse,
   SearchResult,
 } from './types';
 import exclude from './utilities/exclude';
@@ -68,12 +69,15 @@ export class JSONPad {
         protected: boolean;
       }
     >
-  ): Promise<List[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof List>[0][];
-    }>(this.token, 'GET', '/lists', parameters);
+  ): Promise<PaginatedResponse<List>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof List>[0]>
+    >(this.token, 'GET', '/lists', parameters);
 
-    return result!.data.map(datum => new List(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new List(datum)),
+    };
   }
 
   /**
@@ -155,12 +159,15 @@ export class JSONPad {
         type: ListEventType;
       }
     >
-  ): Promise<Event[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Event>[0][];
-    }>(this.token, 'GET', `/lists/${listId}/events`, parameters);
+  ): Promise<PaginatedResponse<Event>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Event>[0]>
+    >(this.token, 'GET', `/lists/${listId}/events`, parameters);
 
-    return result!.data.map(datum => new Event(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Event(datum)),
+    };
   }
 
   /**
@@ -243,10 +250,10 @@ export class JSONPad {
       }
     >,
     identity?: IdentityParameter
-  ): Promise<Item[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Item>[0][];
-    }>(
+  ): Promise<PaginatedResponse<Item>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Item>[0]>
+    >(
       this.token,
       'GET',
       `/lists/${listId}/items`,
@@ -256,7 +263,10 @@ export class JSONPad {
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
 
-    return result!.data.map(datum => new Item(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Item(datum)),
+    };
   }
 
   /**
@@ -275,9 +285,9 @@ export class JSONPad {
       }
     >,
     identity?: IdentityParameter
-  ): Promise<T[]> {
+  ): Promise<PaginatedResponse<T>> {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
-    const result = await request<{ data: T[] }>(
+    const result = await request<PaginatedResponse<T>>(
       this.token,
       'GET',
       `/lists/${listId}/items/data${pointerString}`,
@@ -287,7 +297,7 @@ export class JSONPad {
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
 
-    return result!.data;
+    return result!;
   }
 
   /**
@@ -375,17 +385,15 @@ export class JSONPad {
         type: ItemEventType;
       }
     >
-  ): Promise<Event[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Event>[0][];
-    }>(
-      this.token,
-      'GET',
-      `/lists/${listId}/items/${itemId}/events`,
-      parameters
-    );
+  ): Promise<PaginatedResponse<Event>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Event>[0]>
+    >(this.token, 'GET', `/lists/${listId}/items/${itemId}/events`, parameters);
 
-    return result!.data.map(datum => new Event(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Event(datum)),
+    };
   }
 
   /**
@@ -592,12 +600,15 @@ export class JSONPad {
         defaultOrderDirection: OrderDirection;
       }
     >
-  ): Promise<Index[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Index>[0][];
-    }>(this.token, 'GET', `/lists/${listId}/indexes`, parameters);
+  ): Promise<PaginatedResponse<Index>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Index>[0]>
+    >(this.token, 'GET', `/lists/${listId}/indexes`, parameters);
 
-    return result!.data.map(datum => new Index(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Index(datum)),
+    };
   }
 
   /**
@@ -644,17 +655,20 @@ export class JSONPad {
         type: IndexEventType;
       }
     >
-  ): Promise<Event[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Event>[0][];
-    }>(
+  ): Promise<PaginatedResponse<Event>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Event>[0]>
+    >(
       this.token,
       'GET',
       `/lists/${listId}/indexes/${indexId}/events`,
       parameters
     );
 
-    return result!.data.map(datum => new Event(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Event(datum)),
+    };
   }
 
   /**
@@ -736,12 +750,15 @@ export class JSONPad {
         name: string;
       }
     >
-  ): Promise<Identity[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Identity>[0][];
-    }>(this.token, 'GET', '/identities', parameters);
+  ): Promise<PaginatedResponse<Identity>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Identity>[0]>
+    >(this.token, 'GET', '/identities', parameters);
 
-    return result!.data.map(datum => new Identity(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Identity(datum)),
+    };
   }
 
   /**
@@ -786,12 +803,15 @@ export class JSONPad {
         type: IdentityEventType;
       }
     >
-  ): Promise<Event[]> {
-    const result = await request<{
-      data: ConstructorParameters<typeof Event>[0][];
-    }>(this.token, 'GET', `/identities/${identityId}/events`, parameters);
+  ): Promise<PaginatedResponse<Event>> {
+    const result = await request<
+      PaginatedResponse<ConstructorParameters<typeof Event>[0]>
+    >(this.token, 'GET', `/identities/${identityId}/events`, parameters);
 
-    return result!.data.map(datum => new Event(datum));
+    return {
+      ...result!,
+      data: result!.data.map(datum => new Event(datum)),
+    };
   }
 
   /**

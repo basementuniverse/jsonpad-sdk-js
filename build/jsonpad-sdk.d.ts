@@ -88,6 +88,13 @@ type PaginatedRequest<T extends string> = {
     direction: OrderDirection;
 };
 
+type PaginatedResponse<T = any> = {
+    page: number;
+    limit: number;
+    total: number;
+    data: T[];
+};
+
 type SearchResult = {
     relevance: number;
 } & ({
@@ -243,7 +250,7 @@ declare class JSONPad {
         realtime: boolean;
         indexable: boolean;
         protected: boolean;
-    }>): Promise<List[]>;
+    }>): Promise<PaginatedResponse<List>>;
     /**
      * Fetch a specific list
      */
@@ -268,7 +275,7 @@ declare class JSONPad {
         startAt: Date;
         endAt: Date;
         type: ListEventType;
-    }>): Promise<Event[]>;
+    }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for a list
      */
@@ -295,7 +302,7 @@ declare class JSONPad {
         readonly: boolean;
         includeData: boolean;
         [key: string]: any;
-    }>, identity?: IdentityParameter): Promise<Item[]>;
+    }>, identity?: IdentityParameter): Promise<PaginatedResponse<Item>>;
     /**
      * Fetch a page of items, and only return each item's data or a part of the
      * item's data
@@ -306,7 +313,7 @@ declare class JSONPad {
         alias: string;
         readonly: boolean;
         [key: string]: any;
-    }>, identity?: IdentityParameter): Promise<T[]>;
+    }>, identity?: IdentityParameter): Promise<PaginatedResponse<T>>;
     /**
      * Fetch a specific item
      */
@@ -338,7 +345,7 @@ declare class JSONPad {
         startAt: Date;
         endAt: Date;
         type: ItemEventType;
-    }>): Promise<Event[]>;
+    }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an item
      */
@@ -388,7 +395,7 @@ declare class JSONPad {
         valueType: IndexValueType;
         alias: boolean;
         defaultOrderDirection: OrderDirection;
-    }>): Promise<Index[]>;
+    }>): Promise<PaginatedResponse<Index>>;
     /**
      * Fetch a specific index
      */
@@ -406,7 +413,7 @@ declare class JSONPad {
         startAt: Date;
         endAt: Date;
         type: IndexEventType;
-    }>): Promise<Event[]>;
+    }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an index
      */
@@ -433,7 +440,7 @@ declare class JSONPad {
     fetchIdentities(parameters?: Partial<PaginatedRequest<IdentityOrderBy> & {
         group: string;
         name: string;
-    }>): Promise<Identity[]>;
+    }>): Promise<PaginatedResponse<Identity>>;
     /**
      * Fetch a specific identity
      */
@@ -451,7 +458,7 @@ declare class JSONPad {
         startAt: Date;
         endAt: Date;
         type: IdentityEventType;
-    }>): Promise<Event[]>;
+    }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an identity
      */
