@@ -246,6 +246,7 @@ export class JSONPad {
         alias: string;
         readonly: boolean;
         includeData: boolean;
+        path: string;
         [key: string]: any;
       }
     >,
