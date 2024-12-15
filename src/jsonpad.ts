@@ -220,6 +220,7 @@ export class JSONPad {
     data: Partial<Item>,
     parameters?: Partial<{
       generate: boolean;
+      includeData: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -310,6 +311,7 @@ export class JSONPad {
     parameters?: Partial<{
       version: string;
       includeData: boolean;
+      path: string;
       generate: boolean;
     }>,
     identity?: IdentityParameter
@@ -421,6 +423,9 @@ export class JSONPad {
     listId: string,
     itemId: string,
     data: Partial<Item>,
+    parameters?: Partial<{
+      includeData: boolean;
+    }>,
     identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
@@ -428,7 +433,7 @@ export class JSONPad {
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}`,
-        undefined,
+        parameters,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -445,6 +450,7 @@ export class JSONPad {
     data: any,
     parameters?: Partial<{
       pointer: string;
+      includeData: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -455,7 +461,7 @@ export class JSONPad {
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        undefined,
+        parameters,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -472,6 +478,7 @@ export class JSONPad {
     data: any,
     parameters?: Partial<{
       pointer: string;
+      includeData: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -482,7 +489,7 @@ export class JSONPad {
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        undefined,
+        parameters,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -499,6 +506,7 @@ export class JSONPad {
     patch: JSONPatch,
     parameters?: Partial<{
       pointer: string;
+      includeData: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -509,7 +517,7 @@ export class JSONPad {
         this.token,
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        undefined,
+        parameters,
         patch,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -544,6 +552,7 @@ export class JSONPad {
     itemId: string,
     parameters?: {
       pointer: string;
+      includeData: boolean;
     },
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -554,7 +563,7 @@ export class JSONPad {
         this.token,
         'DELETE',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        undefined,
+        parameters,
         undefined,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken

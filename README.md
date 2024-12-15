@@ -158,6 +158,10 @@ const item: Item = await jsonpad.createItem(
       age: 30,
     },
     description: 'This is Alice',
+  },
+  {
+    generate: false,
+    includeData: true,
   }
 );
 ```
@@ -174,6 +178,7 @@ const item: Item = await jsonpad.createItem(
     },
     description: 'This is Alice',
   },
+  undefined,
   {
     ignore: true, // if true, don't send identity credentials with the request
     group: 'my-group', // set the identity group, or override cached identity group

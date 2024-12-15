@@ -293,6 +293,7 @@ declare class JSONPad {
      */
     createItem(listId: string, data: Partial<Item>, parameters?: Partial<{
         generate: boolean;
+        includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Fetch a page of items
@@ -321,6 +322,7 @@ declare class JSONPad {
     fetchItem(listId: string, itemId: string, parameters?: Partial<{
         version: string;
         includeData: boolean;
+        path: string;
         generate: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
@@ -354,24 +356,29 @@ declare class JSONPad {
     /**
      * Update an item
      */
-    updateItem(listId: string, itemId: string, data: Partial<Item>, identity?: IdentityParameter): Promise<Item>;
+    updateItem(listId: string, itemId: string, data: Partial<Item>, parameters?: Partial<{
+        includeData: boolean;
+    }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item's data
      */
     updateItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
         pointer: string;
+        includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Replace an item's data
      */
     replaceItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
         pointer: string;
+        includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Patch an item's data
      */
     patchItemData(listId: string, itemId: string, patch: JSONPatch, parameters?: Partial<{
         pointer: string;
+        includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Delete an item
@@ -382,6 +389,7 @@ declare class JSONPad {
      */
     deleteItemData(listId: string, itemId: string, parameters?: {
         pointer: string;
+        includeData: boolean;
     }, identity?: IdentityParameter): Promise<Item>;
     /**
      * Create a new index
