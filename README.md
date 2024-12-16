@@ -13,7 +13,7 @@ npm install @basementuniverse/jsonpad-sdk
 To use the SDK in the browser, you can include it directly from a local file or CDN.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/jsonpad-sdk@1.6.0/build/jsonpad-sdk.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/jsonpad-sdk@1.6.1/build/jsonpad-sdk.js"></script>
 ```
 
 If you'd prefer to download it and include the file manually, you only need `build/jsonpad-sdk.js` from the package.

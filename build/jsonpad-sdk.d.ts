@@ -250,6 +250,7 @@ declare class JSONPad {
         realtime: boolean;
         indexable: boolean;
         protected: boolean;
+        generative: boolean;
     }>): Promise<PaginatedResponse<List>>;
     /**
      * Fetch a specific list
