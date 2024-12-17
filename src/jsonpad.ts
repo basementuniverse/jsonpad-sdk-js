@@ -334,7 +334,7 @@ export class JSONPad {
    * Fetch a specific item, and only return the item's data or a part of the
    * item's data
    */
-  public async fetchItemData(
+  public async fetchItemData<T = any>(
     listId: string,
     itemId: string,
     parameters?: Partial<{
@@ -344,10 +344,10 @@ export class JSONPad {
       generate: boolean;
     }>,
     identity?: IdentityParameter
-  ): Promise<Item> {
+  ): Promise<T> {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
-    return (await request<Item>(
+    return (await request<T>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/data${pointerString}`,

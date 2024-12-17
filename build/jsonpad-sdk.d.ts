@@ -330,12 +330,12 @@ declare class JSONPad {
      * Fetch a specific item, and only return the item's data or a part of the
      * item's data
      */
-    fetchItemData(listId: string, itemId: string, parameters?: Partial<{
+    fetchItemData<T = any>(listId: string, itemId: string, parameters?: Partial<{
         path: string;
         pointer: string;
         version: string;
         generate: boolean;
-    }>, identity?: IdentityParameter): Promise<Item>;
+    }>, identity?: IdentityParameter): Promise<T>;
     /**
      * Fetch stats for an item
      */
