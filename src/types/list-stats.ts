@@ -2,8 +2,8 @@ import { ListEventType } from './list-event-type';
 import { Metric, Stats } from './stats';
 
 export type ListStats = {
-  maxItems: number;
-  maxIndexes: number;
+  maxItems?: number | null;
+  maxIndexes?: number | null;
   items: Stats<{
     lists: {
       [id: string]: number;

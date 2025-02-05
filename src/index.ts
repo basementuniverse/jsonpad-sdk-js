@@ -1,8 +1,12 @@
 import { JSONPad } from './jsonpad';
-import { Event, Index, Item, List, User } from './models';
+import { Event, Identity, Index, Item, List, User } from './models';
 import {
   EventOrderBy,
   EventStream,
+  IdentityEventType,
+  IdentityOrderBy,
+  IdentityParameter,
+  IdentityStats,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
@@ -10,11 +14,13 @@ import {
   ItemEventType,
   ItemOrderBy,
   ItemStats,
+  JSONPatch,
   ListEventType,
   ListOrderBy,
   ListStats,
   OrderDirection,
   PaginatedRequest,
+  PaginatedResponse,
   SearchResult,
 } from './types';
 
@@ -23,6 +29,11 @@ export {
   Event,
   EventOrderBy,
   EventStream,
+  Identity,
+  IdentityEventType,
+  IdentityOrderBy,
+  IdentityParameter,
+  IdentityStats,
   Index,
   IndexEventType,
   IndexOrderBy,
@@ -32,12 +43,14 @@ export {
   ItemEventType,
   ItemOrderBy,
   ItemStats,
+  JSONPatch,
   List,
   ListEventType,
   ListOrderBy,
   ListStats,
   OrderDirection,
   PaginatedRequest,
+  PaginatedResponse,
   SearchResult,
   User,
 };

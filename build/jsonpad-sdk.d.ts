@@ -62,8 +62,8 @@ type ListEventType = 'list-created' | 'list-updated' | 'list-deleted';
 type ListOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'pinned' | 'readonly' | 'realtime' | 'indexable' | 'generative' | 'protected' | 'activated';
 
 type ListStats = {
-    maxItems: number;
-    maxIndexes: number;
+    maxItems?: number | null;
+    maxIndexes?: number | null;
     items: Stats<{
         lists: {
             [id: string]: number;
@@ -521,4 +521,4 @@ declare class JSONPad {
     deleteSelfIdentity(identity?: IdentityParameter): Promise<void>;
 }
 
-export { Event, type EventOrderBy, type EventStream, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type SearchResult, User, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, type JSONPatch, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, type SearchResult, User, JSONPad as default };
