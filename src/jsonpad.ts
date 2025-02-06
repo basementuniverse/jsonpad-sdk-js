@@ -710,7 +710,7 @@ export class JSONPad {
     return new Index(
       (await request<ConstructorParameters<typeof Index>[0]>(
         this.token,
-        'PATCH',
+        'PUT',
         `/lists/${listId}/indexes/${indexId}`,
         undefined,
         data
