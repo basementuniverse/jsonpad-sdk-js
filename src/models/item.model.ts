@@ -1,8 +1,8 @@
-export class Item {
+export class Item<T = any> {
   public id!: string;
   public createdAt!: Date;
   public updatedAt!: Date;
-  public data!: any;
+  public data!: T;
   public description!: string;
   public version!: string;
   public readonly!: boolean;
@@ -10,7 +10,7 @@ export class Item {
   public size!: number;
 
   public constructor(
-    data: Item & {
+    data: Item<T> & {
       createdAt: string;
       updatedAt: string;
     }

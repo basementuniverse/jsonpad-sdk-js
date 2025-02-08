@@ -182,17 +182,17 @@ declare class Index {
     });
 }
 
-declare class Item {
+declare class Item<T = any> {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    data: any;
+    data: T;
     description: string;
     version: string;
     readonly: boolean;
     activated: boolean;
     size: number;
-    constructor(data: Item & {
+    constructor(data: Item<T> & {
         createdAt: string;
         updatedAt: string;
     });
@@ -299,13 +299,13 @@ declare class JSONPad {
     /**
      * Fetch a page of items
      */
-    fetchItems(listId: string, parameters?: Partial<PaginatedRequest<ItemOrderBy> & {
+    fetchItems<T = any>(listId: string, parameters?: Partial<PaginatedRequest<ItemOrderBy> & {
         alias: string;
         readonly: boolean;
         includeData: boolean;
         path: string;
         [key: string]: any;
-    }>, identity?: IdentityParameter): Promise<PaginatedResponse<Item>>;
+    }>, identity?: IdentityParameter): Promise<PaginatedResponse<Item<T>>>;
     /**
      * Fetch a page of items, and only return each item's data or a part of the
      * item's data
@@ -363,14 +363,14 @@ declare class JSONPad {
     /**
      * Update an item's data
      */
-    updateItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
+    updateItemData<T = any>(listId: string, itemId: string, data: T, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Replace an item's data
      */
-    replaceItemData(listId: string, itemId: string, data: any, parameters?: Partial<{
+    replaceItemData<T = any>(listId: string, itemId: string, data: T, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;

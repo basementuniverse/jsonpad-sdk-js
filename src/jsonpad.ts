@@ -241,7 +241,7 @@ export class JSONPad {
   /**
    * Fetch a page of items
    */
-  public async fetchItems(
+  public async fetchItems<T = any>(
     listId: string,
     parameters?: Partial<
       PaginatedRequest<ItemOrderBy> & {
@@ -253,9 +253,9 @@ export class JSONPad {
       }
     >,
     identity?: IdentityParameter
-  ): Promise<PaginatedResponse<Item>> {
+  ): Promise<PaginatedResponse<Item<T>>> {
     const result = await request<
-      PaginatedResponse<ConstructorParameters<typeof Item>[0]>
+      PaginatedResponse<ConstructorParameters<typeof Item<T>>[0]>
     >(
       this.token,
       'GET',
@@ -268,7 +268,7 @@ export class JSONPad {
 
     return {
       ...result!,
-      data: result!.data.map(datum => new Item(datum)),
+      data: result!.data.map(datum => new Item<T>(datum)),
     };
   }
 
@@ -445,10 +445,10 @@ export class JSONPad {
   /**
    * Update an item's data
    */
-  public async updateItemData(
+  public async updateItemData<T = any>(
     listId: string,
     itemId: string,
-    data: any,
+    data: T,
     parameters?: Partial<{
       pointer: string;
       includeData: boolean;
@@ -473,10 +473,10 @@ export class JSONPad {
   /**
    * Replace an item's data
    */
-  public async replaceItemData(
+  public async replaceItemData<T = any>(
     listId: string,
     itemId: string,
-    data: any,
+    data: T,
     parameters?: Partial<{
       pointer: string;
       includeData: boolean;
