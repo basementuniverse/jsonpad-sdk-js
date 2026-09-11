@@ -349,11 +349,19 @@ declare class JSONPad {
         startAt: Date;
         endAt: Date;
         type: ItemEventType;
+        restorable: boolean;
     }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an item
      */
     fetchItemEvent(listId: string, itemId: string, eventId: string): Promise<Event>;
+    /**
+     * Restore an item to the state it was in when the specified event was
+     * created, re-creating the item if it has been deleted
+     */
+    restoreItem(listId: string, itemId: string, eventId: string, parameters?: Partial<{
+        includeData: boolean;
+    }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item
      */

@@ -86,6 +86,7 @@ const jsonpad = new JSONPad(
 - [Fetch item stats](#fetch-item-stats)
 - [Fetch item events](#fetch-item-events)
 - [Fetch an item event](#fetch-an-item-event)
+- [Restore an item](#restore-an-item)
 - [Update an item](#update-an-item)
 - [Update an item's data](#update-an-items-data)
 - [Replace an item's data](#replace-an-items-data)
@@ -883,6 +884,7 @@ function fetchItemEvents(
     type?:
       | 'item-created'
       | 'item-updated'
+      | 'item-restored'
       | 'item-deleted';
 
     // Filter for events after this date
@@ -890,6 +892,9 @@ function fetchItemEvents(
 
     // Filter for events before this date
     endAt?: Date;
+
+    // Only return events that the item can be restored from
+    restorable?: boolean;
   }
 ): Promise<PaginatedResponse<Event>>;
 ```
@@ -925,6 +930,49 @@ Example:
 
 ```ts
 const event: Event = await jsonpad.fetchItemEvent(
+  '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
+  '098e58bc-05f6-4a59-a755-fb9bc54f4a5b',
+  'b87aacfb-15b3-43d3-8ffc-a21443ee05f2'
+);
+```
+
+### Restore an item
+
+Restore an item to the state it was in when the specified event was created. The item's `data`, `description`, `readonly` and `activated` fields will be restored, and a new version will be created.
+
+This can also be used to restore an item that has been deleted, in which case the item will be re-created with the same id. Deleted items must be referenced by id (not by alias).
+
+Use `fetchItemEvents` with `restorable: true` to find events that an item can be restored from.
+
+Restoring an item requires the `restore` (or `restore-with-identity`) token permission.
+
+```ts
+function restoreItem(
+  listId: string, // The list id or path name
+  itemId: string, // The item id or alias (deleted items must be referenced by id)
+  eventId: string, // The id of an item-created, item-updated, item-restored or item-deleted event for this item
+  parameters?: {
+    // Should we include the item data in the response?
+    // Default is true
+    includeData?: boolean;
+  },
+  identity?: {
+    // Ignore cached identity credentials and don't send them with the request
+    ignore?: boolean;
+
+    // Set the identity group, or override cached identity group
+    group?: string;
+
+    // Set the identity token, or override cached identity token
+    token?: string;
+  }
+): Promise<Item>;
+```
+
+Example:
+
+```ts
+const item: Item = await jsonpad.restoreItem(
   '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
   '098e58bc-05f6-4a59-a755-fb9bc54f4a5b',
   'b87aacfb-15b3-43d3-8ffc-a21443ee05f2'

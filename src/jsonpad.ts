@@ -387,6 +387,7 @@ export class JSONPad {
         startAt: Date;
         endAt: Date;
         type: ItemEventType;
+        restorable: boolean;
       }
     >
   ): Promise<PaginatedResponse<Event>> {
@@ -413,6 +414,32 @@ export class JSONPad {
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}/events/${eventId}`
+      ))!
+    );
+  }
+
+  /**
+   * Restore an item to the state it was in when the specified event was
+   * created, re-creating the item if it has been deleted
+   */
+  public async restoreItem(
+    listId: string,
+    itemId: string,
+    eventId: string,
+    parameters?: Partial<{
+      includeData: boolean;
+    }>,
+    identity?: IdentityParameter
+  ): Promise<Item> {
+    return new Item(
+      (await request<ConstructorParameters<typeof Item>[0]>(
+        this.token,
+        'POST',
+        `/lists/${listId}/items/${itemId}/events/${eventId}/restore`,
+        parameters,
+        undefined,
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
       ))!
     );
   }
