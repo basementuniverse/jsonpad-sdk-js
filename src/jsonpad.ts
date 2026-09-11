@@ -1,4 +1,6 @@
-import { Event, Identity, Index, Item, List } from './models';
+import { JSONPadError } from './errors';
+import { ResponseEvent } from './events';
+import { Event, Identity, Index, Item, List, Token } from './models';
 import {
   EventOrderBy,
   IdentityEventType,
@@ -19,12 +21,17 @@ import {
   OrderDirection,
   PaginatedRequest,
   PaginatedResponse,
+  ResponseMeta,
   SearchResult,
+  TokenSelf,
+  Usage,
 } from './types';
 import exclude from './utilities/exclude';
-import request from './utilities/request';
+import sendRequest from './utilities/request';
 
-export class JSONPad {
+export class JSONPad extends EventTarget {
+  private lastResponseMeta: ResponseMeta | null = null;
+
   /**
    * Create a new JSONPad client instance
    */
@@ -32,7 +39,92 @@ export class JSONPad {
     private token: string,
     private identityGroup?: string,
     private identityToken?: string
-  ) {}
+  ) {
+    super();
+  }
+
+  /**
+   * Rate limit and quota information from the most recent response, or null
+   * if no requests have been made yet
+   *
+   * When requests are made concurrently, this is whichever response arrived
+   * last. Listen for the 'response' event to see every one.
+   */
+  public get lastResponse(): ResponseMeta | null {
+    return this.lastResponseMeta;
+  }
+
+  /**
+   * Listen for events
+   *
+   * A 'response' event is dispatched every time a response is received,
+   * whether or not the request succeeded. Its detail contains rate limit and
+   * quota information.
+   */
+  public addEventListener(
+    type: 'response',
+    listener: ((event: ResponseEvent) => void) | null,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  public addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  public addEventListener(
+    type: string,
+    listener: any,
+    options?: boolean | AddEventListenerOptions
+  ): void {
+    super.addEventListener(type, listener, options);
+  }
+
+  /**
+   * Stop listening for events
+   */
+  public removeEventListener(
+    type: 'response',
+    listener: ((event: ResponseEvent) => void) | null,
+    options?: boolean | EventListenerOptions
+  ): void;
+  public removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions
+  ): void;
+  public removeEventListener(
+    type: string,
+    listener: any,
+    options?: boolean | EventListenerOptions
+  ): void {
+    super.removeEventListener(type, listener, options);
+  }
+
+  /**
+   * Make a request to the API, and publish the rate limit and quota
+   * information from its response whether or not the request succeeded
+   */
+  private async request<T = any>(
+    ...args: Parameters<typeof sendRequest>
+  ): Promise<T | null> {
+    try {
+      const { data, meta } = await sendRequest<T>(...args);
+      this.handleResponse(meta);
+
+      return data;
+    } catch (error) {
+      if (error instanceof JSONPadError) {
+        this.handleResponse(error.meta);
+      }
+
+      throw error;
+    }
+  }
+
+  private handleResponse(meta: ResponseMeta) {
+    this.lastResponseMeta = meta;
+    this.dispatchEvent(new ResponseEvent(meta));
+  }
 
   // ---------------------------------------------------------------------------
   // LISTS
@@ -44,7 +136,7 @@ export class JSONPad {
    */
   public async createList(data: Partial<List>): Promise<List> {
     return new List(
-      (await request<ConstructorParameters<typeof List>[0]>(
+      (await this.request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'POST',
         '/lists',
@@ -71,7 +163,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<List>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof List>[0]>
     >(this.token, 'GET', '/lists', parameters);
 
@@ -86,7 +178,7 @@ export class JSONPad {
    */
   public async fetchList(listId: string): Promise<List> {
     return new List(
-      (await request<ConstructorParameters<typeof List>[0]>(
+      (await this.request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'GET',
         `/lists/${listId}`
@@ -105,7 +197,7 @@ export class JSONPad {
       includeData: boolean;
     }>
   ): Promise<SearchResult[]> {
-    return (await request<
+    return (await this.request<
       ({
         relevance: number;
       } & (
@@ -140,7 +232,7 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<ListStats> {
-    return (await request<ListStats>(
+    return (await this.request<ListStats>(
       this.token,
       'GET',
       `/lists/${listId}/stats`,
@@ -161,7 +253,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Event>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Event>[0]>
     >(this.token, 'GET', `/lists/${listId}/events`, parameters);
 
@@ -176,7 +268,7 @@ export class JSONPad {
    */
   public async fetchListEvent(listId: string, eventId: string): Promise<Event> {
     return new Event(
-      (await request<ConstructorParameters<typeof Event>[0]>(
+      (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/events/${eventId}`
@@ -189,7 +281,7 @@ export class JSONPad {
    */
   public async updateList(listId: string, data: Partial<List>): Promise<List> {
     return new List(
-      (await request<ConstructorParameters<typeof List>[0]>(
+      (await this.request<ConstructorParameters<typeof List>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}`,
@@ -203,7 +295,7 @@ export class JSONPad {
    * Delete a list
    */
   public async deleteList(listId: string) {
-    await request(this.token, 'DELETE', `/lists/${listId}`);
+    await this.request(this.token, 'DELETE', `/lists/${listId}`);
   }
 
   // #endregion
@@ -226,7 +318,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items`,
@@ -254,7 +346,7 @@ export class JSONPad {
     >,
     identity?: IdentityParameter
   ): Promise<PaginatedResponse<Item<T>>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Item<T>>[0]>
     >(
       this.token,
@@ -290,7 +382,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<PaginatedResponse<T>> {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
-    const result = await request<PaginatedResponse<T>>(
+    const result = await this.request<PaginatedResponse<T>>(
       this.token,
       'GET',
       `/lists/${listId}/items/data${pointerString}`,
@@ -318,7 +410,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}`,
@@ -347,7 +439,7 @@ export class JSONPad {
   ): Promise<T> {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
-    return (await request<T>(
+    return (await this.request<T>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/data${pointerString}`,
@@ -368,7 +460,7 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<ItemStats> {
-    return (await request<ItemStats>(
+    return (await this.request<ItemStats>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/stats`,
@@ -391,7 +483,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Event>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Event>[0]>
     >(this.token, 'GET', `/lists/${listId}/items/${itemId}/events`, parameters);
 
@@ -410,7 +502,7 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      (await request<ConstructorParameters<typeof Event>[0]>(
+      (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}/events/${eventId}`
@@ -432,7 +524,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/events/${eventId}/restore`,
@@ -457,7 +549,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Item> {
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}`,
@@ -485,7 +577,7 @@ export class JSONPad {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
@@ -513,7 +605,7 @@ export class JSONPad {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
@@ -541,7 +633,7 @@ export class JSONPad {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
@@ -561,7 +653,7 @@ export class JSONPad {
     itemId: string,
     identity?: IdentityParameter
   ) {
-    await request(
+    await this.request(
       this.token,
       'DELETE',
       `/lists/${listId}/items/${itemId}`,
@@ -587,7 +679,7 @@ export class JSONPad {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
-      (await request<ConstructorParameters<typeof Item>[0]>(
+      (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'DELETE',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
@@ -614,7 +706,7 @@ export class JSONPad {
     data: Partial<Index>
   ): Promise<Index> {
     return new Index(
-      (await request<ConstructorParameters<typeof Index>[0]>(
+      (await this.request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/indexes`,
@@ -639,7 +731,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Index>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Index>[0]>
     >(this.token, 'GET', `/lists/${listId}/indexes`, parameters);
 
@@ -654,7 +746,7 @@ export class JSONPad {
    */
   public async fetchIndex(listId: string, indexId: string): Promise<Index> {
     return new Index(
-      (await request<ConstructorParameters<typeof Index>[0]>(
+      (await this.request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/indexes/${indexId}`
@@ -672,7 +764,7 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<IndexStats> {
-    return (await request<IndexStats>(
+    return (await this.request<IndexStats>(
       this.token,
       'GET',
       `/lists/${listId}/indexes/${indexId}/stats`,
@@ -694,7 +786,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Event>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Event>[0]>
     >(
       this.token,
@@ -718,7 +810,7 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      (await request<ConstructorParameters<typeof Event>[0]>(
+      (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/lists/${listId}/indexes/${indexId}/events/${eventId}`
@@ -735,7 +827,7 @@ export class JSONPad {
     data: Partial<Index>
   ): Promise<Index> {
     return new Index(
-      (await request<ConstructorParameters<typeof Index>[0]>(
+      (await this.request<ConstructorParameters<typeof Index>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/indexes/${indexId}`,
@@ -749,7 +841,11 @@ export class JSONPad {
    * Delete an index
    */
   public async deleteIndex(listId: string, indexId: string) {
-    await request(this.token, 'DELETE', `/lists/${listId}/indexes/${indexId}`);
+    await this.request(
+      this.token,
+      'DELETE',
+      `/lists/${listId}/indexes/${indexId}`
+    );
   }
 
   // #endregion
@@ -768,7 +864,7 @@ export class JSONPad {
     password: string;
   }): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'POST',
         '/identities',
@@ -789,7 +885,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Identity>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Identity>[0]>
     >(this.token, 'GET', '/identities', parameters);
 
@@ -804,7 +900,7 @@ export class JSONPad {
    */
   public async fetchIdentity(identityId: string): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'GET',
         `/identities/${identityId}`
@@ -821,7 +917,7 @@ export class JSONPad {
       days: number;
     }>
   ): Promise<IdentityStats> {
-    return (await request<IdentityStats>(
+    return (await this.request<IdentityStats>(
       this.token,
       'GET',
       `/identities/${identityId}/stats`,
@@ -842,7 +938,7 @@ export class JSONPad {
       }
     >
   ): Promise<PaginatedResponse<Event>> {
-    const result = await request<
+    const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Event>[0]>
     >(this.token, 'GET', `/identities/${identityId}/events`, parameters);
 
@@ -860,7 +956,7 @@ export class JSONPad {
     eventId: string
   ): Promise<Event> {
     return new Event(
-      (await request<ConstructorParameters<typeof Event>[0]>(
+      (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
         `/identities/${identityId}/events/${eventId}`
@@ -879,7 +975,7 @@ export class JSONPad {
     }
   ): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'PUT',
         `/identities/${identityId}`,
@@ -893,7 +989,7 @@ export class JSONPad {
    * Delete an identity
    */
   public async deleteIdentity(identityId: string) {
-    await request(this.token, 'DELETE', `/identities/${identityId}`);
+    await this.request(this.token, 'DELETE', `/identities/${identityId}`);
   }
 
   /**
@@ -908,7 +1004,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'POST',
         '/identities/register',
@@ -931,7 +1027,7 @@ export class JSONPad {
     },
     identity?: IdentityParameter
   ): Promise<[Identity, string | undefined]> {
-    const response = (await request<
+    const response = (await this.request<
       ConstructorParameters<typeof Identity>[0] & { token: string }
     >(
       this.token,
@@ -960,7 +1056,7 @@ export class JSONPad {
    * Logout using an identity
    */
   public async logoutIdentity(identity?: IdentityParameter) {
-    await request(
+    await this.request(
       this.token,
       'POST',
       '/identities/logout',
@@ -981,7 +1077,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'GET',
         '/identities/self',
@@ -1004,7 +1100,7 @@ export class JSONPad {
     identity?: IdentityParameter
   ): Promise<Identity> {
     return new Identity(
-      (await request<ConstructorParameters<typeof Identity>[0]>(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
         this.token,
         'PUT',
         '/identities/self',
@@ -1020,7 +1116,7 @@ export class JSONPad {
    * Delete the current identity
    */
   public async deleteSelfIdentity(identity?: IdentityParameter) {
-    await request(
+    await this.request(
       this.token,
       'DELETE',
       '/identities/self',
@@ -1029,6 +1125,39 @@ export class JSONPad {
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
+  }
+
+  // #endregion
+
+  // ---------------------------------------------------------------------------
+  // TOKENS
+  // #region tokens
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetch the current token, the limits of the plan it belongs to, and the
+   * account's usage so far this month
+   */
+  public async fetchSelfToken(): Promise<TokenSelf> {
+    const result = (await this.request<
+      Omit<TokenSelf, 'token' | 'usage'> & {
+        token: ConstructorParameters<typeof Token>[0];
+        usage: Omit<Usage, 'periodStart' | 'periodEnd'> & {
+          periodStart: string;
+          periodEnd: string;
+        };
+      }
+    >(this.token, 'GET', '/tokens/self'))!;
+
+    return {
+      token: new Token(result.token),
+      plan: result.plan,
+      usage: {
+        ...result.usage,
+        periodStart: new Date(result.usage.periodStart),
+        periodEnd: new Date(result.usage.periodEnd),
+      },
+    };
   }
 
   // #endregion

@@ -3,4 +3,5 @@ export * from './identity.model';
 export * from './index.model';
 export * from './item.model';
 export * from './list.model';
+export * from './token.model';
 export * from './user.model';

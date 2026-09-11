@@ -1,3 +1,105 @@
+/**
+ * Rate limit and quota information, read from the headers of an API response
+ */
+type ResponseMeta = {
+    /**
+     * The HTTP status code
+     */
+    status: number;
+    /**
+     * The request id, which is useful when reporting a problem
+     */
+    requestId: string | null;
+    /**
+     * The per-minute rate limit, or null if the plan has no per-minute limit
+     */
+    rateLimit: {
+        /**
+         * How many requests the plan allows per minute
+         */
+        total: number;
+        /**
+         * How many more requests can be made in the rolling minute, after this one
+         */
+        remaining: number;
+    } | null;
+    /**
+     * The monthly request quota, or null if the request wasn't metered
+     */
+    quota: {
+        /**
+         * The monthly allowance, excluding any overdraft or credits, or null if
+         * the plan has no monthly limit
+         */
+        total: number | null;
+        /**
+         * How many requests are left before writes are refused, including any
+         * overdraft and credits, or null if the plan has no monthly limit
+         */
+        remaining: number | null;
+        /**
+         * How many prepaid request credits are held, or null if the plan has no
+         * monthly limit
+         */
+        credits: number | null;
+        /**
+         * When the monthly allowance resets
+         */
+        resetAt: Date;
+        /**
+         * True if the allowance and credits have run out, and this read was served
+         * at the free tier's rate limit
+         */
+        degraded: boolean;
+    } | null;
+    /**
+     * On a 429 response, how many seconds to wait before retrying
+     */
+    retryAfter: number | null;
+};
+
+/**
+ * Thrown when the API responds with an error status
+ */
+declare class JSONPadError extends Error {
+    /**
+     * The HTTP status code, e.g. 429
+     */
+    readonly status: number;
+    /**
+     * The jsonpad error code, e.g. 10007, or null if the response wasn't a
+     * jsonpad error
+     */
+    readonly code: number | null;
+    /**
+     * The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED', or null if the
+     * response wasn't a jsonpad error
+     */
+    readonly errorName: string | null;
+    /**
+     * Rate limit and quota information from the response
+     */
+    readonly meta: ResponseMeta;
+    constructor(status: number, body: string, meta: ResponseMeta);
+    /**
+     * On a 429 response, how many seconds to wait before retrying
+     */
+    get retryAfter(): number | null;
+}
+
+/**
+ * Dispatched by a JSONPad instance every time it receives a response, whether
+ * or not the request succeeded
+ *
+ * This extends globalThis.Event rather than Event, because the SDK has an
+ * Event model of its own that would otherwise shadow it in the bundled type
+ * definitions.
+ */
+declare class ResponseEvent extends globalThis.Event {
+    readonly detail: ResponseMeta;
+    constructor(detail: ResponseMeta);
+}
+
 type EventOrderBy = 'createdAt' | 'type';
 
 type EventStream = 'list' | 'item' | 'index';
@@ -102,6 +204,101 @@ type SearchResult = {
 } | {
     item: Item;
 });
+
+/**
+ * The limits of a subscription plan. A null limit means there is no limit.
+ */
+type SubscriptionPlan = {
+    id: string;
+    name: string;
+    /**
+     * The minimum gap between requests, in milliseconds
+     */
+    rateLimit: number | null;
+    maxRequestsPerMinute: number | null;
+    maxRequestsPerMonth: number | null;
+    overdraftPercent: number;
+    maxStorageBytes: number | null;
+    maxLists: number | null;
+    maxItemsPerList: number | null;
+    maxIndexesPerList: number | null;
+    maxItemSize: number | null;
+    maxItemVersions: number | null;
+    maxTokens: number | null;
+    maxIdentities: number | null;
+    maxRealtimeConnections: number | null;
+    generativeAPI: boolean;
+};
+
+type TokenPermission = {
+    mode: 'allow' | 'block';
+    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity';
+    resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
+    listIds?: string[];
+    itemIds?: string[];
+    indexIds?: string[];
+    identityIds?: string[];
+    groups?: string[];
+};
+
+declare class Token {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    description: string;
+    permissions: TokenPermission[];
+    ips: string[] | null;
+    expiresAt: Date | null;
+    activated: boolean;
+    locked: boolean;
+    constructor(data: Token & {
+        createdAt: string;
+        updatedAt: string;
+        expiresAt: string | null;
+    });
+}
+
+/**
+ * An account's usage for the current calendar month
+ */
+type Usage = {
+    periodStart: Date;
+    periodEnd: Date;
+    requestCount: number;
+    blockedCount: number;
+    requestAllowance: number | null;
+    /**
+     * Including any overdraft and credits, or null if the plan has no monthly
+     * limit
+     */
+    requestsRemaining: number | null;
+    overdraftAllowance: number;
+    credits: number;
+    storageBytes: number;
+    storageAllowance: number | null;
+    /**
+     * True if the allowance and credits have run out, and reads are being served
+     * at the free tier's rate limit
+     */
+    degraded: boolean;
+};
+
+type TokenSelf = {
+    /**
+     * The token making the request. The token value itself is not included.
+     */
+    token: Token;
+    /**
+     * The limits in effect for the request. If usage.degraded is true, then
+     * rateLimit and maxRequestsPerMinute are the free tier's.
+     */
+    plan: SubscriptionPlan;
+    /**
+     * Usage across the whole account, not just this token
+     */
+    usage: Usage;
+};
 
 declare class User {
     id: string;
@@ -227,14 +424,43 @@ declare class List {
     });
 }
 
-declare class JSONPad {
+declare class JSONPad extends EventTarget {
     private token;
     private identityGroup?;
     private identityToken?;
+    private lastResponseMeta;
     /**
      * Create a new JSONPad client instance
      */
     constructor(token: string, identityGroup?: string | undefined, identityToken?: string | undefined);
+    /**
+     * Rate limit and quota information from the most recent response, or null
+     * if no requests have been made yet
+     *
+     * When requests are made concurrently, this is whichever response arrived
+     * last. Listen for the 'response' event to see every one.
+     */
+    get lastResponse(): ResponseMeta | null;
+    /**
+     * Listen for events
+     *
+     * A 'response' event is dispatched every time a response is received,
+     * whether or not the request succeeded. Its detail contains rate limit and
+     * quota information.
+     */
+    addEventListener(type: 'response', listener: ((event: ResponseEvent) => void) | null, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
+    /**
+     * Stop listening for events
+     */
+    removeEventListener(type: 'response', listener: ((event: ResponseEvent) => void) | null, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
+    /**
+     * Make a request to the API, and publish the rate limit and quota
+     * information from its response whether or not the request succeeded
+     */
+    private request;
+    private handleResponse;
     /**
      * Create a new list
      */
@@ -527,6 +753,11 @@ declare class JSONPad {
      * Delete the current identity
      */
     deleteSelfIdentity(identity?: IdentityParameter): Promise<void>;
+    /**
+     * Fetch the current token, the limits of the plan it belongs to, and the
+     * account's usage so far this month
+     */
+    fetchSelfToken(): Promise<TokenSelf>;
 }
 
-export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, type SearchResult, User, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };

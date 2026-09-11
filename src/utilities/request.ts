@@ -1,4 +1,7 @@
 import * as constants from '../constants';
+import { JSONPadError } from '../errors';
+import { ResponseMeta } from '../types/response-meta';
+import parseResponseMeta from './parse-response-meta';
 
 export default async function request<T = any>(
   token: string,
@@ -8,7 +11,7 @@ export default async function request<T = any>(
   body?: any,
   identityGroup?: string,
   identityToken?: string
-): Promise<T | null> {
+): Promise<{ data: T | null; meta: ResponseMeta }> {
   const parametersString = parameters
     ? new URLSearchParams({
         ...Object.fromEntries(
@@ -41,13 +44,15 @@ export default async function request<T = any>(
     }
   );
 
+  const meta = parseResponseMeta(response);
+
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new JSONPadError(response.status, await response.text(), meta);
   }
 
   if (response.status === 204) {
-    return null;
+    return { data: null, meta };
   }
 
-  return await response.json();
+  return { data: await response.json(), meta };
 }

@@ -1,5 +1,7 @@
+import { JSONPadError } from './errors';
+import { ResponseEvent } from './events';
 import { JSONPad } from './jsonpad';
-import { Event, Identity, Index, Item, List, User } from './models';
+import { Event, Identity, Index, Item, List, Token, User } from './models';
 import {
   EventOrderBy,
   EventStream,
@@ -20,7 +22,12 @@ import {
   OrderDirection,
   PaginatedRequest,
   PaginatedResponse,
+  ResponseMeta,
   SearchResult,
+  SubscriptionPlan,
+  TokenPermission,
+  TokenSelf,
+  Usage,
 } from './types';
 
 export default JSONPad;
@@ -42,6 +49,7 @@ export {
   ItemEventType,
   ItemOrderBy,
   ItemStats,
+  JSONPadError,
   List,
   ListEventType,
   ListOrderBy,
@@ -49,6 +57,13 @@ export {
   OrderDirection,
   PaginatedRequest,
   PaginatedResponse,
+  ResponseEvent,
+  ResponseMeta,
   SearchResult,
+  SubscriptionPlan,
+  Token,
+  TokenPermission,
+  TokenSelf,
+  Usage,
   User,
 };

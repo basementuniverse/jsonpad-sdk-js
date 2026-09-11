@@ -62,6 +62,45 @@ const jsonpad = new JSONPad(
 );
 ```
 
+## Rate limits and quotas
+
+Every response from the API includes information about your per-minute rate limit and your monthly quota. The SDK dispatches a `response` event with this information every time it receives a response, whether or not the request succeeded:
+
+```ts
+jsonpad.addEventListener('response', e => {
+  const { rateLimit, quota } = e.detail;
+
+  if (rateLimit && rateLimit.remaining < 5) {
+    console.log('Nearly at the rate limit, slowing down...');
+  }
+
+  if (quota?.degraded) {
+    console.log(`Out of quota until ${quota.resetAt}, writes will be refused`);
+  }
+});
+```
+
+The information from the most recent response is also available as `jsonpad.lastResponse`, which is `null` until the first request has been made. If you make requests concurrently, this is whichever response arrived last.
+
+See [`ResponseMeta`](#responsemeta) for everything that's included, and [Limits and quotas](https://jsonpad.io/docs/limits-and-quotas) for how the limits work.
+
+When a request fails, the SDK throws a [`JSONPadError`](#jsonpaderror), which includes the HTTP status, the jsonpad error code, and the same rate limit and quota information:
+
+```ts
+import JSONPad, { JSONPadError } from '@basementuniverse/jsonpad-sdk';
+
+try {
+  await jsonpad.createItem('my-list', { data: { name: 'Alice' } });
+} catch (error) {
+  if (error instanceof JSONPadError && error.retryAfter !== null) {
+    // Wait for as long as the API asked before trying again
+    await new Promise(resolve => setTimeout(resolve, error.retryAfter * 1000));
+  }
+}
+```
+
+To check your plan's limits and your usage at any time, use [Fetch the current token](#fetch-the-current-token).
+
 ## Contents
 
 ### Lists
@@ -121,6 +160,10 @@ const jsonpad = new JSONPad(
 - [Fetch the currently logged in identity](#fetch-the-currently-logged-in-identity)
 - [Update the currently logged in identity](#update-the-currently-logged-in-identity)
 - [Delete the currently logged in identity](#delete-the-currently-logged-in-identity)
+
+### Tokens
+
+- [Fetch the current token](#fetch-the-current-token)
 
 ## SDK Reference
 
@@ -1986,6 +2029,22 @@ Example:
 await jsonpad.deleteSelfIdentity();
 ```
 
+### Fetch the current token
+
+Fetch the token making the request, the limits of its subscription plan, and the account's usage for the current month. Any active token can do this, whatever its permissions.
+
+```ts
+function fetchSelfToken(): Promise<TokenSelf>;
+```
+
+Example:
+
+```ts
+const self: TokenSelf = await jsonpad.fetchSelfToken();
+
+console.log(`${self.usage.requestsRemaining} requests left this month`);
+```
+
 ## Types
 
 The SDK includes TypeScript types for the JSONPad API. You can import them like so:
@@ -2018,6 +2077,14 @@ import JSONPad, {
   PaginatedRequest,
   PaginatedResponse,
   SearchResult,
+  Token,
+  TokenPermission,
+  TokenSelf,
+  SubscriptionPlan,
+  Usage,
+  ResponseMeta,
+  ResponseEvent,
+  JSONPadError,
 } from '@basementuniverse/jsonpad-sdk';
 ```
 
@@ -2429,4 +2496,188 @@ type SearchResult = (
     item: Item;
   }
 );
+```
+
+### `Token`
+
+```ts
+type Token = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  description: string;
+  permissions: TokenPermission[];
+  ips: string[] | null;
+  expiresAt: Date | null;
+  activated: boolean;
+  locked: boolean;
+};
+```
+
+### `TokenPermission`
+
+See [Token permissions](https://jsonpad.io/docs/token-permissions) for which combinations are valid.
+
+```ts
+type TokenPermission = {
+  mode: 'allow' | 'block';
+  action:
+    | '*'
+    | 'create'
+    | 'view'
+    | 'update'
+    | 'delete'
+    | 'restore'
+    | 'register'
+    | 'authenticate'
+    | 'create-with-identity'
+    | 'view-with-identity'
+    | 'update-with-identity'
+    | 'delete-with-identity'
+    | 'restore-with-identity';
+  resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
+  listIds?: string[];
+  itemIds?: string[];
+  indexIds?: string[];
+  identityIds?: string[];
+  groups?: string[];
+};
+```
+
+### `TokenSelf`
+
+```ts
+type TokenSelf = {
+  // The token making the request (the token value itself is not included)
+  token: Token;
+
+  // The limits in effect for the request
+  plan: SubscriptionPlan;
+
+  // Usage across the whole account, not just this token
+  usage: Usage;
+};
+```
+
+### `SubscriptionPlan`
+
+A `null` limit means there is no limit. If `usage.degraded` is `true`, then `rateLimit` and `maxRequestsPerMinute` are the free tier's rather than the plan's.
+
+```ts
+type SubscriptionPlan = {
+  id: string;
+  name: string;
+
+  // The minimum gap between requests, in milliseconds
+  rateLimit: number | null;
+  maxRequestsPerMinute: number | null;
+  maxRequestsPerMonth: number | null;
+  overdraftPercent: number;
+  maxStorageBytes: number | null;
+  maxLists: number | null;
+  maxItemsPerList: number | null;
+  maxIndexesPerList: number | null;
+  maxItemSize: number | null;
+  maxItemVersions: number | null;
+  maxTokens: number | null;
+  maxIdentities: number | null;
+  maxRealtimeConnections: number | null;
+  generativeAPI: boolean;
+};
+```
+
+### `Usage`
+
+```ts
+type Usage = {
+  periodStart: Date;
+  periodEnd: Date;
+  requestCount: number;
+  blockedCount: number;
+  requestAllowance: number | null;
+
+  // Including any overdraft and credits, or null if the plan has no monthly limit
+  requestsRemaining: number | null;
+  overdraftAllowance: number;
+  credits: number;
+  storageBytes: number;
+  storageAllowance: number | null;
+
+  // True once the allowance and credits have run out, and reads are being
+  // served at the free tier's rate limit
+  degraded: boolean;
+};
+```
+
+### `ResponseMeta`
+
+```ts
+type ResponseMeta = {
+  // The HTTP status code
+  status: number;
+
+  // The request id, which is useful when reporting a problem
+  requestId: string | null;
+
+  // The per-minute rate limit, or null if the plan has no per-minute limit
+  rateLimit: {
+    total: number;
+
+    // How many more requests can be made in the rolling minute, after this one
+    remaining: number;
+  } | null;
+
+  // The monthly request quota, or null if the request wasn't metered
+  quota: {
+    // These three are null if the plan has no monthly limit
+    total: number | null;
+    remaining: number | null;
+    credits: number | null;
+
+    resetAt: Date;
+
+    // True if the allowance and credits have run out, and this read was served
+    // at the free tier's rate limit
+    degraded: boolean;
+  } | null;
+
+  // On a 429 response, how many seconds to wait before retrying
+  retryAfter: number | null;
+};
+```
+
+### `ResponseEvent`
+
+```ts
+class ResponseEvent extends Event {
+  type: 'response';
+  detail: ResponseMeta;
+}
+```
+
+### `JSONPadError`
+
+See [Errors](https://jsonpad.io/docs/errors) for a list of error codes.
+
+```ts
+class JSONPadError extends Error {
+  // The raw response body
+  message: string;
+
+  // The HTTP status code, e.g. 429
+  status: number;
+
+  // The jsonpad error code, e.g. 10007, or null if the response wasn't a jsonpad error
+  code: number | null;
+
+  // The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED'
+  errorName: string | null;
+
+  // On a 429 response, how many seconds to wait before retrying
+  retryAfter: number | null;
+
+  // Rate limit and quota information from the response
+  meta: ResponseMeta;
+}
 ```
