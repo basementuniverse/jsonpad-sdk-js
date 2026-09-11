@@ -666,8 +666,15 @@ function fetchItems(
     // This uses an alias index, if the list has one
     alias?: string;
 
-    // Filter items by readonly status
+    // Filter items by their own readonly status
+    // Items in a readonly list can't be modified either, but they aren't
+    // treated as readonly by this filter
     readonly?: boolean;
+
+    // Filter for items owned by the identity with this id
+    // This is ignored when using identity credentials, since only items owned
+    // by that identity will be visible
+    identityId?: string;
 
     // Should we include the item data for each item in the response?
     // Defualt is false
@@ -734,8 +741,15 @@ function fetchItemsData<T = any>(
     // This uses an alias index, if the list has one
     alias?: string;
 
-    // Filter items by readonly status
+    // Filter items by their own readonly status
+    // Items in a readonly list can't be modified either, but they aren't
+    // treated as readonly by this filter
     readonly?: boolean;
+
+    // Filter for items owned by the identity with this id
+    // This is ignored when using identity credentials, since only items owned
+    // by that identity will be visible
+    identityId?: string;
 
     // Optionally only include a part of each item's data in the response
     // This uses JSON Path syntax
@@ -880,6 +894,16 @@ function fetchItemStats(
     // The number of days to fetch stats for
     // Default is 7, max is 90
     days?: number;
+  },
+  identity?: {
+    // Ignore cached identity credentials and don't send them with the request
+    ignore?: boolean;
+
+    // Set the identity group, or override cached identity group
+    group?: string;
+
+    // Set the identity token, or override cached identity token
+    token?: string;
   }
 ): Promise<ItemStats>;
 ```
@@ -938,6 +962,16 @@ function fetchItemEvents(
 
     // Only return events that the item can be restored from
     restorable?: boolean;
+  },
+  identity?: {
+    // Ignore cached identity credentials and don't send them with the request
+    ignore?: boolean;
+
+    // Set the identity group, or override cached identity group
+    group?: string;
+
+    // Set the identity token, or override cached identity token
+    token?: string;
   }
 ): Promise<PaginatedResponse<Event>>;
 ```
@@ -965,7 +999,17 @@ const response: PaginatedResponse<Event> = await jsonpad.fetchItemEvents(
 function fetchItemEvent(
   listId: string, // The list id or path name
   itemId: string, // The item id or alias
-  eventId: string // The event id
+  eventId: string, // The event id
+  identity?: {
+    // Ignore cached identity credentials and don't send them with the request
+    ignore?: boolean;
+
+    // Set the identity group, or override cached identity group
+    group?: string;
+
+    // Set the identity token, or override cached identity token
+    token?: string;
+  }
 ): Promise<Event>;
 ```
 
@@ -1629,6 +1673,10 @@ function createIdentity(
     // The identity name
     name: string;
 
+    // A public name for the identity, e.g. to show who created an item
+    // Unlike the name, this isn't used to log in
+    displayName?: string | null;
+
     // The identity group
     group?: string;
 
@@ -1674,6 +1722,9 @@ function fetchIdentities(
 
     // Filter identities by name (partial match, case-insensitive)
     name?: string;
+
+    // Filter identities by display name (partial match, case-insensitive)
+    displayName?: string;
   }
 ): Promise<PaginatedResponse<Identity>>;
 ```
@@ -1813,6 +1864,10 @@ function updateIdentity(
     // The identity name
     name?: string;
 
+    // A public name for the identity, e.g. to show who created an item
+    // Set this to null to remove the display name
+    displayName?: string | null;
+
     // The identity group
     group?: string;
 
@@ -1858,6 +1913,10 @@ function registerIdentity(
 
     // The identity name
     name: string;
+
+    // A public name for the identity, e.g. to show who created an item
+    // Unlike the name, this isn't used to log in
+    displayName?: string | null;
 
     // The identity password
     password: string;
@@ -1980,6 +2039,10 @@ function updateSelfIdentity(
   data: {
     // The identity name
     name?: string;
+
+    // A public name for the identity, e.g. to show who created an item
+    // Set this to null to remove the display name
+    displayName?: string | null;
 
     // The identity password
     password?: string;
@@ -2214,6 +2277,14 @@ type Item = {
   readonly: boolean;
   activated: boolean;
   size: number;
+
+  // The identity that owns this item, or null if the item isn't owned by an
+  // identity (e.g. it was created without using an identity, or the identity
+  // has since been deleted)
+  identity: {
+    id: string;
+    displayName: string | null;
+  } | null;
 };
 ```
 
@@ -2230,7 +2301,7 @@ type ItemEventType =
 ### `ItemOrderBy`
 
 ```ts
-type ItemOrderBy = string | 'createdAt' | 'updatedAt';
+type ItemOrderBy = string | 'createdAt' | 'updatedAt' | 'identityId';
 ```
 
 ### `ItemStats`
@@ -2345,6 +2416,7 @@ type Identity = {
   updatedAt: Date;
   user: User;
   name: string;
+  displayName: string | null;
   group: string;
   lastLoginAt: Date | null;
   activated: boolean;
@@ -2372,6 +2444,7 @@ export type IdentityOrderBy =
   | 'createdAt'
   | 'updatedAt'
   | 'name'
+  | 'displayName'
   | 'group'
   | 'activated';
 ```

@@ -6,6 +6,7 @@ export class Identity {
   public updatedAt!: Date;
   public user?: User;
   public name!: string;
+  public displayName: string | null = null;
   public group!: string;
   public lastLoginAt: Date | null = null;
   public activated!: boolean;

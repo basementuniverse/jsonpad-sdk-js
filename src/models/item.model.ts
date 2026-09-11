@@ -8,6 +8,10 @@ export class Item<T = any> {
   public readonly!: boolean;
   public activated!: boolean;
   public size!: number;
+  public identity!: {
+    id: string;
+    displayName: string | null;
+  } | null;
 
   public constructor(
     data: Item<T> & {

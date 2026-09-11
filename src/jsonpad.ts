@@ -339,6 +339,7 @@ export class JSONPad extends EventTarget {
       PaginatedRequest<ItemOrderBy> & {
         alias: string;
         readonly: boolean;
+        identityId: string;
         includeData: boolean;
         path: string;
         [key: string]: any;
@@ -376,6 +377,7 @@ export class JSONPad extends EventTarget {
         pointer: string;
         alias: string;
         readonly: boolean;
+        identityId: string;
         [key: string]: any;
       }
     >,
@@ -458,13 +460,17 @@ export class JSONPad extends EventTarget {
     itemId: string,
     parameters?: Partial<{
       days: number;
-    }>
+    }>,
+    identity?: IdentityParameter
   ): Promise<ItemStats> {
     return (await this.request<ItemStats>(
       this.token,
       'GET',
       `/lists/${listId}/items/${itemId}/stats`,
-      parameters
+      parameters,
+      undefined,
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
     ))!;
   }
 
@@ -481,11 +487,20 @@ export class JSONPad extends EventTarget {
         type: ItemEventType;
         restorable: boolean;
       }
-    >
+    >,
+    identity?: IdentityParameter
   ): Promise<PaginatedResponse<Event>> {
     const result = await this.request<
       PaginatedResponse<ConstructorParameters<typeof Event>[0]>
-    >(this.token, 'GET', `/lists/${listId}/items/${itemId}/events`, parameters);
+    >(
+      this.token,
+      'GET',
+      `/lists/${listId}/items/${itemId}/events`,
+      parameters,
+      undefined,
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    );
 
     return {
       ...result!,
@@ -499,13 +514,18 @@ export class JSONPad extends EventTarget {
   public async fetchItemEvent(
     listId: string,
     itemId: string,
-    eventId: string
+    eventId: string,
+    identity?: IdentityParameter
   ): Promise<Event> {
     return new Event(
       (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
-        `/lists/${listId}/items/${itemId}/events/${eventId}`
+        `/lists/${listId}/items/${itemId}/events/${eventId}`,
+        undefined,
+        undefined,
+        identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken
       ))!
     );
   }
@@ -861,6 +881,7 @@ export class JSONPad extends EventTarget {
   public async createIdentity(data: {
     group?: string;
     name: string;
+    displayName?: string | null;
     password: string;
   }): Promise<Identity> {
     return new Identity(
@@ -882,6 +903,7 @@ export class JSONPad extends EventTarget {
       PaginatedRequest<IdentityOrderBy> & {
         group: string;
         name: string;
+        displayName: string;
       }
     >
   ): Promise<PaginatedResponse<Identity>> {
@@ -971,6 +993,7 @@ export class JSONPad extends EventTarget {
     identityId: string,
     data: {
       name?: string;
+      displayName?: string | null;
       password?: string;
     }
   ): Promise<Identity> {
@@ -999,6 +1022,7 @@ export class JSONPad extends EventTarget {
     data: {
       group?: string;
       name: string;
+      displayName?: string | null;
       password: string;
     },
     identity?: IdentityParameter
@@ -1094,8 +1118,9 @@ export class JSONPad extends EventTarget {
    */
   public async updateSelfIdentity(
     data: {
-      name: string;
-      password: string;
+      name?: string;
+      displayName?: string | null;
+      password?: string;
     },
     identity?: IdentityParameter
   ): Promise<Identity> {
