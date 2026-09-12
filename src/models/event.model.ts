@@ -15,8 +15,12 @@ export class Event {
   public stream!: EventStream;
   public type!: ListEventType | ItemEventType | IndexEventType;
   public version!: string;
-  public snapshot!: any;
-  public attachments!: any;
+
+  /**
+   * Only present if the request included includeSnapshot / includeAttachments
+   */
+  public snapshot?: any;
+  public attachments?: any;
 
   public constructor(
     data: Event & {

@@ -101,6 +101,50 @@ try {
 
 To check your plan's limits and your usage at any time, use [Fetch the current token](#fetch-the-current-token).
 
+## Guard indexes
+
+An index can be marked as a **guard**, which hides the value at its pointer from
+item data whenever the API is used with a token. Everything else about the item
+comes back as normal, and the value can still be written; it just reads back as
+though the field was never there.
+
+```ts
+await jsonpad.createIndex('rsvps', {
+  name: 'Email',
+  pathName: 'email',
+  pointer: '/email',
+  valueType: 'string',
+  guard: true,
+});
+
+// The email is hidden, but the RSVP can still be submitted from a browser
+const item = await jsonpad.createItem('rsvps', {
+  data: { name: 'Alice', email: 'alice@example.com' },
+});
+
+console.log(item.data); // { name: 'Alice' }
+```
+
+This is what makes a token safe to put in a public page: a guarded value is
+removed everywhere item data leaves the API, including event snapshots, item
+version history and realtime messages.
+
+An [identity](#identities) can read the guarded values in the items it owns by
+passing `includeGuarded: true` alongside its credentials:
+
+```ts
+const own = await jsonpad.fetchItem('rsvps', item.id, { includeGuarded: true });
+
+console.log(own.data); // { name: 'Alice', email: 'alice@example.com' }
+```
+
+Guards only apply to token auth. Your own data is always fully visible in the
+jsonpad dashboard.
+
+Because a guard index hides its value, it can't also be used as an alias or for
+sorting, filtering or searching — each of those would expose the value through
+another channel. Creating or updating an index that combines them is refused.
+
 ## Contents
 
 ### Lists
@@ -331,6 +375,13 @@ function searchList(
     // Include item data in the search results
     // (only used if items are included in the results)
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   }
 ): Promise<SearchResult[]>;
 ```
@@ -462,6 +513,14 @@ function fetchListEvents(
 
     // Filter for events before this date
     endAt?: Date;
+
+    // Include each event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include each event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
   }
 ): Promise<PaginatedResponse<Event>>;
 ```
@@ -487,7 +546,16 @@ const response: PaginatedResponse<Event> = await jsonpad.fetchListEvents(
 ```ts
 function fetchListEvent(
   id: string, // The list id or path name
-  eventId: string // The event id
+  eventId: string, // The event id
+  parameters?: {
+    // Include the event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include the event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
+  }
 ): Promise<Event>;
 ```
 
@@ -601,6 +669,13 @@ function createItem(
     // Include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -679,6 +754,13 @@ function fetchItems(
     // Should we include the item data for each item in the response?
     // Defualt is false
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
 
     // Optionally only include a part of each item's data in the response
     // This uses JSON Path syntax
@@ -763,6 +845,13 @@ function fetchItemsData<T = any>(
     // Filter items by an indexed field
     // This should match the path name of an index in the list
     [key: string]: any;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -805,6 +894,13 @@ function fetchItem(
     // Should we include the item data in the response?
     // Default is false
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
 
     // Optionally only include a part of the item's data in the response
     // This uses JSON Path syntax
@@ -861,6 +957,13 @@ function fetchItemData(
     // If the list is generative, this will default to true
     // This parameter can be used to override the list's generative setting
     generate?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -962,6 +1065,21 @@ function fetchItemEvents(
 
     // Only return events that the item can be restored from
     restorable?: boolean;
+
+    // Include each event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
+
+    // Include each event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1000,6 +1118,22 @@ function fetchItemEvent(
   listId: string, // The list id or path name
   itemId: string, // The item id or alias
   eventId: string, // The event id
+  parameters?: {
+    // Include the event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
+
+    // Include the event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
+  },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
     ignore?: boolean;
@@ -1042,6 +1176,13 @@ function restoreItem(
     // Should we include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1090,6 +1231,13 @@ function updateItem(
     // Should we include the item data in the response?
     // Default is false
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1135,6 +1283,13 @@ function updateItemData(
     // Should we include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1180,6 +1335,13 @@ function replaceItemData(
     // Should we include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1225,6 +1387,13 @@ function patchItemData(
     // Should we include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1297,6 +1466,13 @@ function deleteItemData(
     // Should we include the item data in the response?
     // Default is true
     includeData?: boolean;
+
+    // Include guarded values in the response?
+    // Values covered by a guard index are removed from item data in token auth
+    // mode. When using identity credentials, this returns the guarded values in
+    // the items owned by that identity
+    // Default is false
+    includeGuarded?: boolean;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1361,6 +1537,14 @@ function createIndex(
     // Default is false
     searching?: boolean;
 
+    // Should this index be a guard index?
+    // The value at a guard index's pointer is removed from item data in
+    // responses in token auth mode. The value can still be written
+    // A guard index can't also be used as an alias, or for sorting, filtering
+    // or searching, because each of those would expose the value it hides
+    // Default is false
+    guard?: boolean;
+
     // The default order direction for this index
     // Default is asc
     defaultOrderDirection?:
@@ -1415,6 +1599,7 @@ function fetchIndexes(
       | 'sorting'
       | 'filtering'
       | 'searching'
+      | 'guard'
       | 'defaultOrderDirection'
       | 'activated';
 
@@ -1438,6 +1623,9 @@ function fetchIndexes(
 
     // Filter indexes by alias status
     alias?: boolean;
+
+    // Filter indexes by guard status
+    guard?: boolean;
 
     // Filter indexes by default order direction
     defaultOrderDirection?:
@@ -1543,6 +1731,14 @@ function fetchIndexEvents(
 
     // Filter for events before this date
     endAt?: Date;
+
+    // Include each event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include each event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
   }
 ): Promise<PaginatedResponse<Event>>;
 ```
@@ -1570,7 +1766,16 @@ const response: PaginatedResponse<Event> = await jsonpad.fetchIndexEvents(
 function fetchIndexEvent(
   listId: string, // The list id or path name
   indexId: string, // The index id or path name
-  eventId: string // The event id
+  eventId: string, // The event id
+  parameters?: {
+    // Include the event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include the event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
+  }
 ): Promise<Event>;
 ```
 
@@ -1618,6 +1823,13 @@ function updateIndex(
 
     // Should this index be used for searching?
     searching?: boolean;
+
+    // Should this index be a guard index?
+    // The value at a guard index's pointer is removed from item data in
+    // responses in token auth mode. The value can still be written
+    // A guard index can't also be used as an alias, or for sorting, filtering
+    // or searching, because each of those would expose the value it hides
+    guard?: boolean;
 
     // The default order direction for this index
     defaultOrderDirection?:
@@ -1817,6 +2029,14 @@ function fetchIdentityEvents(
 
     // Filter for events before this date
     endAt?: Date;
+
+    // Include each event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include each event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
   }
 ): Promise<PaginatedResponse<Event>>;
 ```
@@ -1842,7 +2062,16 @@ const response: PaginatedResponse<Event> = await jsonpad.fetchIdentityEvents(
 ```ts
 function fetchIdentityEvent(
   identityId: string, // The identity id
-  eventId: string // The event id
+  eventId: string, // The event id
+  parameters?: {
+    // Include the event's snapshot in the response
+    // Default is false
+    includeSnapshot?: boolean;
+
+    // Include the event's attachments in the response
+    // Default is false
+    includeAttachments?: boolean;
+  }
 ): Promise<Event>;
 ```
 
@@ -2345,6 +2574,7 @@ type Index = {
   sorting: boolean;
   filtering: boolean;
   searching: boolean;
+  guard: boolean;
   defaultOrderDirection: OrderDirection;
   activated: boolean;
 };
@@ -2372,6 +2602,7 @@ type IndexOrderBy =
   | 'sorting'
   | 'filtering'
   | 'searching'
+  | 'guard'
   | 'defaultOrderDirection'
   | 'activated';
 ```
@@ -2496,8 +2727,10 @@ type Event = {
   stream: EventStream;
   type: ListEventType | ItemEventType | IndexEventType;
   version: string;
-  snapshot: any;
-  attachments: any;
+
+  // Only present if the request included includeSnapshot / includeAttachments
+  snapshot?: any;
+  attachments?: any;
 };
 ```
 

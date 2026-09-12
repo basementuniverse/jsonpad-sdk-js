@@ -195,6 +195,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       includeItems: boolean;
       includeData: boolean;
+      includeGuarded: boolean;
     }>
   ): Promise<SearchResult[]> {
     return (await this.request<
@@ -250,6 +251,8 @@ export class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: ListEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
       }
     >
   ): Promise<PaginatedResponse<Event>> {
@@ -266,12 +269,20 @@ export class JSONPad extends EventTarget {
   /**
    * Fetch a specific event for a list
    */
-  public async fetchListEvent(listId: string, eventId: string): Promise<Event> {
+  public async fetchListEvent(
+    listId: string,
+    eventId: string,
+    parameters?: Partial<{
+      includeSnapshot: boolean;
+      includeAttachments: boolean;
+    }>
+  ): Promise<Event> {
     return new Event(
       (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
-        `/lists/${listId}/events/${eventId}`
+        `/lists/${listId}/events/${eventId}`,
+        parameters
       ))!
     );
   }
@@ -314,6 +325,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       generate: boolean;
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -341,6 +353,7 @@ export class JSONPad extends EventTarget {
         readonly: boolean;
         identityId: string;
         includeData: boolean;
+        includeGuarded: boolean;
         path: string;
         [key: string]: any;
       }
@@ -378,6 +391,7 @@ export class JSONPad extends EventTarget {
         alias: string;
         readonly: boolean;
         identityId: string;
+        includeGuarded: boolean;
         [key: string]: any;
       }
     >,
@@ -406,6 +420,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       version: string;
       includeData: boolean;
+      includeGuarded: boolean;
       path: string;
       generate: boolean;
     }>,
@@ -436,6 +451,7 @@ export class JSONPad extends EventTarget {
       pointer: string;
       version: string;
       generate: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<T> {
@@ -486,6 +502,9 @@ export class JSONPad extends EventTarget {
         endAt: Date;
         type: ItemEventType;
         restorable: boolean;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+        includeGuarded: boolean;
       }
     >,
     identity?: IdentityParameter
@@ -515,6 +534,11 @@ export class JSONPad extends EventTarget {
     listId: string,
     itemId: string,
     eventId: string,
+    parameters?: Partial<{
+      includeSnapshot: boolean;
+      includeAttachments: boolean;
+      includeGuarded: boolean;
+    }>,
     identity?: IdentityParameter
   ): Promise<Event> {
     return new Event(
@@ -522,7 +546,7 @@ export class JSONPad extends EventTarget {
         this.token,
         'GET',
         `/lists/${listId}/items/${itemId}/events/${eventId}`,
-        undefined,
+        parameters,
         undefined,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
         identity?.ignore ? undefined : identity?.token ?? this.identityToken
@@ -540,6 +564,7 @@ export class JSONPad extends EventTarget {
     eventId: string,
     parameters?: Partial<{
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -565,6 +590,7 @@ export class JSONPad extends EventTarget {
     data: Partial<Item>,
     parameters?: Partial<{
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -591,6 +617,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       pointer: string;
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -619,6 +646,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       pointer: string;
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -647,6 +675,7 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       pointer: string;
       includeData: boolean;
+      includeGuarded: boolean;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
@@ -690,10 +719,11 @@ export class JSONPad extends EventTarget {
   public async deleteItemData(
     listId: string,
     itemId: string,
-    parameters?: {
+    parameters?: Partial<{
       pointer: string;
       includeData: boolean;
-    },
+      includeGuarded: boolean;
+    }>,
     identity?: IdentityParameter
   ): Promise<Item> {
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
@@ -747,6 +777,7 @@ export class JSONPad extends EventTarget {
         pathName: string;
         valueType: IndexValueType;
         alias: boolean;
+        guard: boolean;
         defaultOrderDirection: OrderDirection;
       }
     >
@@ -803,6 +834,8 @@ export class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: IndexEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
       }
     >
   ): Promise<PaginatedResponse<Event>> {
@@ -827,13 +860,18 @@ export class JSONPad extends EventTarget {
   public async fetchIndexEvent(
     listId: string,
     indexId: string,
-    eventId: string
+    eventId: string,
+    parameters?: Partial<{
+      includeSnapshot: boolean;
+      includeAttachments: boolean;
+    }>
   ): Promise<Event> {
     return new Event(
       (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
-        `/lists/${listId}/indexes/${indexId}/events/${eventId}`
+        `/lists/${listId}/indexes/${indexId}/events/${eventId}`,
+        parameters
       ))!
     );
   }
@@ -957,6 +995,8 @@ export class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: IdentityEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
       }
     >
   ): Promise<PaginatedResponse<Event>> {
@@ -975,13 +1015,18 @@ export class JSONPad extends EventTarget {
    */
   public async fetchIdentityEvent(
     identityId: string,
-    eventId: string
+    eventId: string,
+    parameters?: Partial<{
+      includeSnapshot: boolean;
+      includeAttachments: boolean;
+    }>
   ): Promise<Event> {
     return new Event(
       (await this.request<ConstructorParameters<typeof Event>[0]>(
         this.token,
         'GET',
-        `/identities/${identityId}/events/${eventId}`
+        `/identities/${identityId}/events/${eventId}`,
+        parameters
       ))!
     );
   }

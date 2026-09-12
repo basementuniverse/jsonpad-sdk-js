@@ -8,5 +8,6 @@ export type IndexOrderBy =
   | 'sorting'
   | 'filtering'
   | 'searching'
+  | 'guard'
   | 'defaultOrderDirection'
   | 'activated';

@@ -13,6 +13,16 @@ export class Index {
   public sorting!: boolean;
   public filtering!: boolean;
   public searching!: boolean;
+
+  /**
+   * When true, the value at this index's pointer is removed from item data in
+   * responses in token auth mode
+   *
+   * The value can still be written. An authenticated identity can read the
+   * guarded values in the items it owns by passing includeGuarded
+   */
+  public guard!: boolean;
+
   public defaultOrderDirection!: OrderDirection;
   public activated!: boolean;
 
