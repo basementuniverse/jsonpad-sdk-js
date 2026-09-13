@@ -1,105 +1,3 @@
-/**
- * Rate limit and quota information, read from the headers of an API response
- */
-type ResponseMeta = {
-    /**
-     * The HTTP status code
-     */
-    status: number;
-    /**
-     * The request id, which is useful when reporting a problem
-     */
-    requestId: string | null;
-    /**
-     * The per-minute rate limit, or null if the plan has no per-minute limit
-     */
-    rateLimit: {
-        /**
-         * How many requests the plan allows per minute
-         */
-        total: number;
-        /**
-         * How many more requests can be made in the rolling minute, after this one
-         */
-        remaining: number;
-    } | null;
-    /**
-     * The monthly request quota, or null if the request wasn't metered
-     */
-    quota: {
-        /**
-         * The monthly allowance, excluding any overdraft or credits, or null if
-         * the plan has no monthly limit
-         */
-        total: number | null;
-        /**
-         * How many requests are left before writes are refused, including any
-         * overdraft and credits, or null if the plan has no monthly limit
-         */
-        remaining: number | null;
-        /**
-         * How many prepaid request credits are held, or null if the plan has no
-         * monthly limit
-         */
-        credits: number | null;
-        /**
-         * When the monthly allowance resets
-         */
-        resetAt: Date;
-        /**
-         * True if the allowance and credits have run out, and this read was served
-         * at the free tier's rate limit
-         */
-        degraded: boolean;
-    } | null;
-    /**
-     * On a 429 response, how many seconds to wait before retrying
-     */
-    retryAfter: number | null;
-};
-
-/**
- * Thrown when the API responds with an error status
- */
-declare class JSONPadError extends Error {
-    /**
-     * The HTTP status code, e.g. 429
-     */
-    readonly status: number;
-    /**
-     * The jsonpad error code, e.g. 10007, or null if the response wasn't a
-     * jsonpad error
-     */
-    readonly code: number | null;
-    /**
-     * The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED', or null if the
-     * response wasn't a jsonpad error
-     */
-    readonly errorName: string | null;
-    /**
-     * Rate limit and quota information from the response
-     */
-    readonly meta: ResponseMeta;
-    constructor(status: number, body: string, meta: ResponseMeta);
-    /**
-     * On a 429 response, how many seconds to wait before retrying
-     */
-    get retryAfter(): number | null;
-}
-
-/**
- * Dispatched by a JSONPad instance every time it receives a response, whether
- * or not the request succeeded
- *
- * This extends globalThis.Event rather than Event, because the SDK has an
- * Event model of its own that would otherwise shadow it in the bundled type
- * definitions.
- */
-declare class ResponseEvent extends globalThis.Event {
-    readonly detail: ResponseMeta;
-    constructor(detail: ResponseMeta);
-}
-
 type EventOrderBy = 'createdAt' | 'type';
 
 type EventStream = 'list' | 'item' | 'index';
@@ -132,7 +30,9 @@ type IdentityStats = {
     }>;
 };
 
-type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted';
+type IndexBuildStatus = 'ready' | 'building' | 'failed';
+
+type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted' | 'index-built' | 'index-build-failed';
 
 type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'guard' | 'defaultOrderDirection' | 'activated';
 
@@ -195,6 +95,66 @@ type PaginatedResponse<T = any> = {
     limit: number;
     total: number;
     data: T[];
+};
+
+/**
+ * Rate limit and quota information, read from the headers of an API response
+ */
+type ResponseMeta = {
+    /**
+     * The HTTP status code
+     */
+    status: number;
+    /**
+     * The request id, which is useful when reporting a problem
+     */
+    requestId: string | null;
+    /**
+     * The per-minute rate limit, or null if the plan has no per-minute limit
+     */
+    rateLimit: {
+        /**
+         * How many requests the plan allows per minute
+         */
+        total: number;
+        /**
+         * How many more requests can be made in the rolling minute, after this one
+         */
+        remaining: number;
+    } | null;
+    /**
+     * The monthly request quota, or null if the request wasn't metered
+     */
+    quota: {
+        /**
+         * The monthly allowance, excluding any overdraft or credits, or null if
+         * the plan has no monthly limit
+         */
+        total: number | null;
+        /**
+         * How many requests are left before writes are refused, including any
+         * overdraft and credits, or null if the plan has no monthly limit
+         */
+        remaining: number | null;
+        /**
+         * How many prepaid request credits are held, or null if the plan has no
+         * monthly limit
+         */
+        credits: number | null;
+        /**
+         * When the monthly allowance resets
+         */
+        resetAt: Date;
+        /**
+         * True if the allowance and credits have run out, and this read was served
+         * at the free tier's rate limit
+         */
+        degraded: boolean;
+    } | null;
+    /**
+     * On a 429 response, how many seconds to wait before retrying
+     */
+    retryAfter: number | null;
 };
 
 type SearchResult = {
@@ -388,6 +348,15 @@ declare class Index {
     guard: boolean;
     defaultOrderDirection: OrderDirection;
     activated: boolean;
+    /**
+     * Whether the index's values have been built
+     *
+     * An index is built in the background when it's created and when its pointer
+     * changes. Until it's 'ready', requests that depend on its values (filtering,
+     * ordering, alias lookups and search) are refused with a 409 INDEX_BUILDING
+     * or INDEX_BUILD_FAILED error. Use waitForIndex to wait for it
+     */
+    buildStatus: IndexBuildStatus;
     constructor(data: Index & {
         createdAt: string;
         updatedAt: string;
@@ -443,6 +412,66 @@ declare class List {
             lastActiveAt: string | null;
         };
     });
+}
+
+/**
+ * Thrown by waitForIndex when an index can't be used: its build failed, or it
+ * didn't finish building before the timeout
+ */
+declare class IndexBuildError extends Error {
+    /**
+     * Why the index isn't ready
+     */
+    readonly reason: 'failed' | 'timeout';
+    /**
+     * The index as it was when we stopped waiting
+     */
+    readonly index: Index;
+    constructor(reason: 'failed' | 'timeout', index: Index);
+}
+
+/**
+ * Thrown when the API responds with an error status
+ */
+declare class JSONPadError extends Error {
+    /**
+     * The HTTP status code, e.g. 429
+     */
+    readonly status: number;
+    /**
+     * The jsonpad error code, e.g. 10007, or null if the response wasn't a
+     * jsonpad error
+     */
+    readonly code: number | null;
+    /**
+     * The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED', or null if the
+     * response wasn't a jsonpad error
+     */
+    readonly errorName: string | null;
+    /**
+     * Rate limit and quota information from the response
+     */
+    readonly meta: ResponseMeta;
+    constructor(status: number, body: string, meta: ResponseMeta);
+    /**
+     * How many seconds to wait before retrying, when the API says: on a 429
+     * response, or a 409 INDEX_BUILDING response for an index that is still
+     * being built
+     */
+    get retryAfter(): number | null;
+}
+
+/**
+ * Dispatched by a JSONPad instance every time it receives a response, whether
+ * or not the request succeeded
+ *
+ * This extends globalThis.Event rather than Event, because the SDK has an
+ * Event model of its own that would otherwise shadow it in the bundled type
+ * definitions.
+ */
+declare class ResponseEvent extends globalThis.Event {
+    readonly detail: ResponseMeta;
+    constructor(detail: ResponseMeta);
 }
 
 declare class JSONPad extends EventTarget {
@@ -724,6 +753,22 @@ declare class JSONPad extends EventTarget {
      */
     updateIndex(listId: string, indexId: string, data: Partial<Index>): Promise<Index>;
     /**
+     * Wait for an index to finish building, and return it once it's ready
+     *
+     * An index is built in the background when it's created and when its pointer
+     * changes, and can't be used for filtering, ordering, alias lookups or search
+     * until then. Each check fetches the index, which counts as a request, so the
+     * delay between checks grows from `interval` up to `maxInterval`.
+     *
+     * Throws an IndexBuildError if the build fails, or if the index isn't ready
+     * within `timeout` milliseconds
+     */
+    waitForIndex(listId: string, indexId: string, options?: Partial<{
+        timeout: number;
+        interval: number;
+        maxInterval: number;
+    }>): Promise<Index>;
+    /**
      * Delete an index
      */
     deleteIndex(listId: string, indexId: string): Promise<void>;
@@ -828,4 +873,4 @@ declare class JSONPad extends EventTarget {
     fetchSelfToken(): Promise<TokenSelf>;
 }
 
-export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
