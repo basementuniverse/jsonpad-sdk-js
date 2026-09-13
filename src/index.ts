@@ -1,4 +1,4 @@
-import { JSONPadError } from './errors';
+import { IndexBuildError, JSONPadError } from './errors';
 import { ResponseEvent } from './events';
 import { JSONPad } from './jsonpad';
 import { Event, Identity, Index, Item, List, Token, User } from './models';
@@ -9,6 +9,7 @@ import {
   IdentityOrderBy,
   IdentityParameter,
   IdentityStats,
+  IndexBuildStatus,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
@@ -41,6 +42,8 @@ export {
   IdentityParameter,
   IdentityStats,
   Index,
+  IndexBuildError,
+  IndexBuildStatus,
   IndexEventType,
   IndexOrderBy,
   IndexStats,

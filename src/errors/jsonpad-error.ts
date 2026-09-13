@@ -44,7 +44,9 @@ export class JSONPadError extends Error {
   }
 
   /**
-   * On a 429 response, how many seconds to wait before retrying
+   * How many seconds to wait before retrying, when the API says: on a 429
+   * response, or a 409 INDEX_BUILDING response for an index that is still
+   * being built
    */
   public get retryAfter(): number | null {
     return this.meta.retryAfter;

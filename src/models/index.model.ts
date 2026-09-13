@@ -1,4 +1,4 @@
-import { IndexValueType, OrderDirection } from '../types';
+import { IndexBuildStatus, IndexValueType, OrderDirection } from '../types';
 
 export class Index {
   public id!: string;
@@ -26,6 +26,16 @@ export class Index {
 
   public defaultOrderDirection!: OrderDirection;
   public activated!: boolean;
+
+  /**
+   * Whether the index's values have been built
+   *
+   * An index is built in the background when it's created and when its pointer
+   * changes. Until it's 'ready', requests that depend on its values (filtering,
+   * ordering, alias lookups and search) are refused with a 409 INDEX_BUILDING
+   * or INDEX_BUILD_FAILED error. Use waitForIndex to wait for it
+   */
+  public buildStatus!: IndexBuildStatus;
 
   public constructor(
     data: Index & {

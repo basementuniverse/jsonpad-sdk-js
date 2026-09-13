@@ -1,4 +1,4 @@
-import { JSONPadError } from './errors';
+import { IndexBuildError, JSONPadError } from './errors';
 import { ResponseEvent } from './events';
 import { Event, Identity, Index, Item, List, Token } from './models';
 import {
@@ -897,6 +897,51 @@ export class JSONPad extends EventTarget {
         data
       ))!
     );
+  }
+
+  /**
+   * Wait for an index to finish building, and return it once it's ready
+   *
+   * An index is built in the background when it's created and when its pointer
+   * changes, and can't be used for filtering, ordering, alias lookups or search
+   * until then. Each check fetches the index, which counts as a request, so the
+   * delay between checks grows from `interval` up to `maxInterval`.
+   *
+   * Throws an IndexBuildError if the build fails, or if the index isn't ready
+   * within `timeout` milliseconds
+   */
+  public async waitForIndex(
+    listId: string,
+    indexId: string,
+    options?: Partial<{
+      timeout: number;
+      interval: number;
+      maxInterval: number;
+    }>
+  ): Promise<Index> {
+    const timeout = options?.timeout ?? 5 * 60 * 1000;
+    const maxInterval = options?.maxInterval ?? 10 * 1000;
+    let interval = options?.interval ?? 500;
+    const deadline = Date.now() + timeout;
+
+    for (;;) {
+      const index = await this.fetchIndex(listId, indexId);
+
+      if (index.buildStatus === 'ready') {
+        return index;
+      }
+
+      if (index.buildStatus === 'failed') {
+        throw new IndexBuildError('failed', index);
+      }
+
+      if (Date.now() + interval > deadline) {
+        throw new IndexBuildError('timeout', index);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, interval));
+      interval = Math.min(interval * 1.5, maxInterval);
+    }
   }
 
   /**

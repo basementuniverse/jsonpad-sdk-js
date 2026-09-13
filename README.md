@@ -145,6 +145,50 @@ Because a guard index hides its value, it can't also be used as an alias or for
 sorting, filtering or searching — each of those would expose the value through
 another channel. Creating or updating an index that combines them is refused.
 
+## Index builds
+
+An index's values are built in the background. `createIndex` returns straight
+away with `buildStatus: 'building'`, and so does `updateIndex` when it changes
+the index's `pointer`. Until the index is `ready`, requests that depend on its
+values are refused with a 409 `INDEX_BUILDING` error: filtering or ordering
+items by it, fetching an item by alias, searching the list, and realtime
+subscriptions by alias.
+
+Use `waitForIndex` to wait until an index can be used:
+
+```ts
+import JSONPad, { IndexBuildError } from '@basementuniverse/jsonpad-sdk';
+
+const index = await jsonpad.createIndex('products', {
+  name: 'Price',
+  pathName: 'price',
+  pointer: '/price',
+  valueType: 'number',
+  sorting: true,
+});
+
+try {
+  await jsonpad.waitForIndex('products', index.id);
+} catch (error) {
+  if (error instanceof IndexBuildError && error.reason === 'failed') {
+    // e.g. an alias index where more than one item has the same value
+  }
+}
+
+const cheapest = await jsonpad.fetchItems('products', { order: 'price' });
+```
+
+Each check fetches the index, which counts as a request, so the wait between
+checks grows the longer the build takes.
+
+If you'd rather handle it yourself, an `INDEX_BUILDING` error is a
+[`JSONPadError`](#jsonpaderror) with `code` 16006 and a `retryAfter` saying how
+many seconds to wait. An index whose build failed has `buildStatus: 'failed'`,
+and requests that need it are refused with `INDEX_BUILD_FAILED` (16007). Fix the
+problem, then update the index (any update will do) to build it again.
+
+Items can still be created, updated and deleted while an index is being built.
+
 ## Tags
 
 Lists, items, indexes, identities and tokens can have tags, which are useful for
@@ -216,6 +260,7 @@ Identities can't set their own tags when registering or updating themselves.
 - [Create an index](#create-an-index)
 - [Fetch all indexes](#fetch-all-indexes)
 - [Fetch an index](#fetch-an-index)
+- [Wait for an index to be built](#wait-for-an-index-to-be-built)
 - [Fetch index stats](#fetch-index-stats)
 - [Fetch index events](#fetch-index-events)
 - [Fetch an index event](#fetch-an-index-event)
@@ -1580,6 +1625,9 @@ function createIndex(
     // The path name of index, used in API paths and SDK methods
     pathName: string;
 
+    // The JSON Pointer to the field to index
+    pointer: string;
+
     // The value type of the field to index
     valueType:
       | 'string'
@@ -1629,6 +1677,7 @@ const index: Index = await jsonpad.createIndex(
     name: 'Name',
     description: 'Name index',
     pathName: 'name',
+    pointer: '/name',
     valueType: 'string',
     alias: false,
     sorting: true,
@@ -1734,6 +1783,44 @@ Example:
 const index: Index = await jsonpad.fetchIndex(
   '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
   '9963146e-aa36-46f9-9f63-497ab9e5d1c6'
+);
+```
+
+### Wait for an index to be built
+
+Resolves with the index once its `buildStatus` is `'ready'`. Throws an
+[`IndexBuildError`](#indexbuilderror) if the build fails, or if the index isn't
+ready before the timeout. See [Index builds](#index-builds).
+
+```ts
+function waitForIndex(
+  listId: string, // The list id or path name
+  indexId: string, // The index id or path name
+  options?: {
+    // How long to wait before giving up, in milliseconds
+    // Default is 300000 (5 minutes)
+    timeout?: number;
+
+    // How long to wait before checking again, in milliseconds
+    // This grows by half after each check, up to maxInterval
+    // Each check fetches the index, which counts as a request
+    // Default is 500
+    interval?: number;
+
+    // The longest wait between checks, in milliseconds
+    // Default is 10000
+    maxInterval?: number;
+  }
+): Promise<Index>;
+```
+
+Example:
+
+```ts
+const index: Index = await jsonpad.waitForIndex(
+  '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
+  '9963146e-aa36-46f9-9f63-497ab9e5d1c6',
+  { timeout: 60000 }
 );
 ```
 
@@ -2438,6 +2525,7 @@ import JSONPad, {
   ItemOrderBy,
   ItemStats,
   Index,
+  IndexBuildStatus,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
@@ -2463,6 +2551,7 @@ import JSONPad, {
   ResponseMeta,
   ResponseEvent,
   JSONPadError,
+  IndexBuildError,
 } from '@basementuniverse/jsonpad-sdk';
 ```
 
@@ -2663,7 +2752,14 @@ type Index = {
   guard: boolean;
   defaultOrderDirection: OrderDirection;
   activated: boolean;
+  buildStatus: IndexBuildStatus;
 };
+```
+
+### `IndexBuildStatus`
+
+```ts
+type IndexBuildStatus = 'ready' | 'building' | 'failed';
 ```
 
 ### `IndexEventType`
@@ -2672,7 +2768,9 @@ type Index = {
 type IndexEventType =
   | 'index-created'
   | 'index-updated'
-  | 'index-deleted';
+  | 'index-deleted'
+  | 'index-built'
+  | 'index-build-failed';
 ```
 
 ### `IndexOrderBy`
@@ -3066,10 +3164,25 @@ class JSONPadError extends Error {
   // The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED'
   errorName: string | null;
 
-  // On a 429 response, how many seconds to wait before retrying
+  // How many seconds to wait before retrying, on a 429 response or a 409
+  // INDEX_BUILDING response
   retryAfter: number | null;
 
   // Rate limit and quota information from the response
   meta: ResponseMeta;
+}
+```
+
+### `IndexBuildError`
+
+Thrown by [`waitForIndex`](#wait-for-an-index-to-be-built).
+
+```ts
+class IndexBuildError extends Error {
+  // 'failed' if the index's build failed, 'timeout' if it wasn't ready in time
+  reason: 'failed' | 'timeout';
+
+  // The index as it was when waiting stopped
+  index: Index;
 }
 ```

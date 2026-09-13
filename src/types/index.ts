@@ -4,6 +4,7 @@ export * from './identity-event-type';
 export * from './identity-order-by';
 export * from './identity-parameter';
 export * from './identity-stats';
+export * from './index-build-status';
 export * from './index-event-type';
 export * from './index-order-by';
 export * from './index-stats';
