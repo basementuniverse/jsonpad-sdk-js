@@ -106,7 +106,7 @@ type EventStream = 'list' | 'item' | 'index';
 
 type IdentityEventType = 'identity-created' | 'identity-updated' | 'identity-deleted' | 'identity-registered' | 'identity-logged-in' | 'identity-logged-out' | 'identity-updated-self' | 'identity-deleted-self';
 
-type IdentityOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'group' | 'activated';
+type IdentityOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'displayName' | 'group' | 'activated';
 
 type IdentityParameter = {
     ignore?: boolean;
@@ -134,7 +134,7 @@ type IdentityStats = {
 
 type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted';
 
-type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'defaultOrderDirection' | 'activated';
+type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'guard' | 'defaultOrderDirection' | 'activated';
 
 type IndexStats = {
     events: Stats<{
@@ -146,7 +146,7 @@ type IndexValueType = 'string' | 'number' | 'date';
 
 type ItemEventType = 'item-created' | 'item-updated' | 'item-restored' | 'item-deleted';
 
-type ItemOrderBy = string | 'createdAt' | 'updatedAt';
+type ItemOrderBy = string | 'createdAt' | 'updatedAt' | 'identityId';
 
 type ItemStats = {
     events: Stats<{
@@ -247,6 +247,7 @@ declare class Token {
     updatedAt: Date;
     name: string;
     description: string;
+    tags: string[];
     permissions: TokenPermission[];
     ips: string[] | null;
     expiresAt: Date | null;
@@ -324,8 +325,11 @@ declare class Event {
     stream: EventStream;
     type: ListEventType | ItemEventType | IndexEventType;
     version: string;
-    snapshot: any;
-    attachments: any;
+    /**
+     * Only present if the request included includeSnapshot / includeAttachments
+     */
+    snapshot?: any;
+    attachments?: any;
     constructor(data: Event & {
         createdAt: string;
         updatedAt: string;
@@ -343,6 +347,8 @@ declare class Identity {
     updatedAt: Date;
     user?: User;
     name: string;
+    displayName: string | null;
+    tags: string[];
     group: string;
     lastLoginAt: Date | null;
     activated: boolean;
@@ -364,6 +370,7 @@ declare class Index {
     updatedAt: Date;
     name: string;
     description: string;
+    tags: string[];
     pathName: string;
     pointer: string;
     valueType: IndexValueType;
@@ -371,6 +378,14 @@ declare class Index {
     sorting: boolean;
     filtering: boolean;
     searching: boolean;
+    /**
+     * When true, the value at this index's pointer is removed from item data in
+     * responses in token auth mode
+     *
+     * The value can still be written. An authenticated identity can read the
+     * guarded values in the items it owns by passing includeGuarded
+     */
+    guard: boolean;
     defaultOrderDirection: OrderDirection;
     activated: boolean;
     constructor(data: Index & {
@@ -385,10 +400,15 @@ declare class Item<T = any> {
     updatedAt: Date;
     data: T;
     description: string;
+    tags: string[];
     version: string;
     readonly: boolean;
     activated: boolean;
     size: number;
+    identity: {
+        id: string;
+        displayName: string | null;
+    } | null;
     constructor(data: Item<T> & {
         createdAt: string;
         updatedAt: string;
@@ -402,6 +422,7 @@ declare class List {
     user?: User;
     name: string;
     description: string;
+    tags: string[];
     pathName: string;
     schema: any;
     pinned: boolean;
@@ -477,6 +498,7 @@ declare class JSONPad extends EventTarget {
         indexable: boolean;
         protected: boolean;
         generative: boolean;
+        tagged: string | string[];
     }>): Promise<PaginatedResponse<List>>;
     /**
      * Fetch a specific list
@@ -488,6 +510,7 @@ declare class JSONPad extends EventTarget {
     searchList(listId: string, query: string, parameters?: Partial<{
         includeItems: boolean;
         includeData: boolean;
+        includeGuarded: boolean;
     }>): Promise<SearchResult[]>;
     /**
      * Fetch stats for a list
@@ -502,11 +525,16 @@ declare class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: ListEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
     }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for a list
      */
-    fetchListEvent(listId: string, eventId: string): Promise<Event>;
+    fetchListEvent(listId: string, eventId: string, parameters?: Partial<{
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+    }>): Promise<Event>;
     /**
      * Update a list
      */
@@ -521,6 +549,7 @@ declare class JSONPad extends EventTarget {
     createItem(listId: string, data: Partial<Item>, parameters?: Partial<{
         generate: boolean;
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Fetch a page of items
@@ -528,8 +557,11 @@ declare class JSONPad extends EventTarget {
     fetchItems<T = any>(listId: string, parameters?: Partial<PaginatedRequest<ItemOrderBy> & {
         alias: string;
         readonly: boolean;
+        identityId: string;
         includeData: boolean;
+        includeGuarded: boolean;
         path: string;
+        tagged: string | string[];
         [key: string]: any;
     }>, identity?: IdentityParameter): Promise<PaginatedResponse<Item<T>>>;
     /**
@@ -541,6 +573,9 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         alias: string;
         readonly: boolean;
+        identityId: string;
+        includeGuarded: boolean;
+        tagged: string | string[];
         [key: string]: any;
     }>, identity?: IdentityParameter): Promise<PaginatedResponse<T>>;
     /**
@@ -549,6 +584,7 @@ declare class JSONPad extends EventTarget {
     fetchItem(listId: string, itemId: string, parameters?: Partial<{
         version: string;
         includeData: boolean;
+        includeGuarded: boolean;
         path: string;
         generate: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
@@ -561,13 +597,14 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         version: string;
         generate: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<T>;
     /**
      * Fetch stats for an item
      */
     fetchItemStats(listId: string, itemId: string, parameters?: Partial<{
         days: number;
-    }>): Promise<ItemStats>;
+    }>, identity?: IdentityParameter): Promise<ItemStats>;
     /**
      * Fetch a page of events for an item
      */
@@ -576,23 +613,32 @@ declare class JSONPad extends EventTarget {
         endAt: Date;
         type: ItemEventType;
         restorable: boolean;
-    }>): Promise<PaginatedResponse<Event>>;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+        includeGuarded: boolean;
+    }>, identity?: IdentityParameter): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an item
      */
-    fetchItemEvent(listId: string, itemId: string, eventId: string): Promise<Event>;
+    fetchItemEvent(listId: string, itemId: string, eventId: string, parameters?: Partial<{
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+        includeGuarded: boolean;
+    }>, identity?: IdentityParameter): Promise<Event>;
     /**
      * Restore an item to the state it was in when the specified event was
      * created, re-creating the item if it has been deleted
      */
     restoreItem(listId: string, itemId: string, eventId: string, parameters?: Partial<{
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item
      */
     updateItem(listId: string, itemId: string, data: Partial<Item>, parameters?: Partial<{
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item's data
@@ -600,6 +646,7 @@ declare class JSONPad extends EventTarget {
     updateItemData<T = any>(listId: string, itemId: string, data: T, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Replace an item's data
@@ -607,6 +654,7 @@ declare class JSONPad extends EventTarget {
     replaceItemData<T = any>(listId: string, itemId: string, data: T, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Patch an item's data
@@ -614,6 +662,7 @@ declare class JSONPad extends EventTarget {
     patchItemData(listId: string, itemId: string, patch: JSONPatch, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
+        includeGuarded: boolean;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Delete an item
@@ -622,10 +671,11 @@ declare class JSONPad extends EventTarget {
     /**
      * Delete part of an item's data
      */
-    deleteItemData(listId: string, itemId: string, parameters?: {
+    deleteItemData(listId: string, itemId: string, parameters?: Partial<{
         pointer: string;
         includeData: boolean;
-    }, identity?: IdentityParameter): Promise<Item>;
+        includeGuarded: boolean;
+    }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Create a new index
      */
@@ -638,7 +688,9 @@ declare class JSONPad extends EventTarget {
         pathName: string;
         valueType: IndexValueType;
         alias: boolean;
+        guard: boolean;
         defaultOrderDirection: OrderDirection;
+        tagged: string | string[];
     }>): Promise<PaginatedResponse<Index>>;
     /**
      * Fetch a specific index
@@ -657,11 +709,16 @@ declare class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: IndexEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
     }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an index
      */
-    fetchIndexEvent(listId: string, indexId: string, eventId: string): Promise<Event>;
+    fetchIndexEvent(listId: string, indexId: string, eventId: string, parameters?: Partial<{
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+    }>): Promise<Event>;
     /**
      * Update an index
      */
@@ -676,6 +733,7 @@ declare class JSONPad extends EventTarget {
     createIdentity(data: {
         group?: string;
         name: string;
+        displayName?: string | null;
         password: string;
     }): Promise<Identity>;
     /**
@@ -684,6 +742,8 @@ declare class JSONPad extends EventTarget {
     fetchIdentities(parameters?: Partial<PaginatedRequest<IdentityOrderBy> & {
         group: string;
         name: string;
+        displayName: string;
+        tagged: string | string[];
     }>): Promise<PaginatedResponse<Identity>>;
     /**
      * Fetch a specific identity
@@ -702,16 +762,22 @@ declare class JSONPad extends EventTarget {
         startAt: Date;
         endAt: Date;
         type: IdentityEventType;
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
     }>): Promise<PaginatedResponse<Event>>;
     /**
      * Fetch a specific event for an identity
      */
-    fetchIdentityEvent(identityId: string, eventId: string): Promise<Event>;
+    fetchIdentityEvent(identityId: string, eventId: string, parameters?: Partial<{
+        includeSnapshot: boolean;
+        includeAttachments: boolean;
+    }>): Promise<Event>;
     /**
      * Update an identity
      */
     updateIdentity(identityId: string, data: {
         name?: string;
+        displayName?: string | null;
         password?: string;
     }): Promise<Identity>;
     /**
@@ -724,6 +790,7 @@ declare class JSONPad extends EventTarget {
     registerIdentity(data: {
         group?: string;
         name: string;
+        displayName?: string | null;
         password: string;
     }, identity?: IdentityParameter): Promise<Identity>;
     /**
@@ -746,8 +813,9 @@ declare class JSONPad extends EventTarget {
      * Update the current identity
      */
     updateSelfIdentity(data: {
-        name: string;
-        password: string;
+        name?: string;
+        displayName?: string | null;
+        password?: string;
     }, identity?: IdentityParameter): Promise<Identity>;
     /**
      * Delete the current identity

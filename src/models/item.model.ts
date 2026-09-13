@@ -4,6 +4,7 @@ export class Item<T = any> {
   public updatedAt!: Date;
   public data!: T;
   public description!: string;
+  public tags!: string[];
   public version!: string;
   public readonly!: boolean;
   public activated!: boolean;

@@ -6,6 +6,7 @@ export class Token {
   public updatedAt!: Date;
   public name!: string;
   public description!: string;
+  public tags!: string[];
   public permissions!: TokenPermission[];
   public ips: string[] | null = null;
   public expiresAt: Date | null = null;

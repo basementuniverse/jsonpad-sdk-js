@@ -160,6 +160,7 @@ export class JSONPad extends EventTarget {
         indexable: boolean;
         protected: boolean;
         generative: boolean;
+        tagged: string | string[];
       }
     >
   ): Promise<PaginatedResponse<List>> {
@@ -355,6 +356,7 @@ export class JSONPad extends EventTarget {
         includeData: boolean;
         includeGuarded: boolean;
         path: string;
+        tagged: string | string[];
         [key: string]: any;
       }
     >,
@@ -392,6 +394,7 @@ export class JSONPad extends EventTarget {
         readonly: boolean;
         identityId: string;
         includeGuarded: boolean;
+        tagged: string | string[];
         [key: string]: any;
       }
     >,
@@ -779,6 +782,7 @@ export class JSONPad extends EventTarget {
         alias: boolean;
         guard: boolean;
         defaultOrderDirection: OrderDirection;
+        tagged: string | string[];
       }
     >
   ): Promise<PaginatedResponse<Index>> {
@@ -942,6 +946,7 @@ export class JSONPad extends EventTarget {
         group: string;
         name: string;
         displayName: string;
+        tagged: string | string[];
       }
     >
   ): Promise<PaginatedResponse<Identity>> {

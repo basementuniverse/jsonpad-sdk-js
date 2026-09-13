@@ -7,6 +7,7 @@ export class List {
   public user?: User;
   public name!: string;
   public description!: string;
+  public tags!: string[];
   public pathName!: string;
   public schema!: any;
   public pinned!: boolean;

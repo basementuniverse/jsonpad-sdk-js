@@ -145,6 +145,40 @@ Because a guard index hides its value, it can't also be used as an alias or for
 sorting, filtering or searching — each of those would expose the value through
 another channel. Creating or updating an index that combines them is refused.
 
+## Tags
+
+Lists, items, indexes, identities and tokens can have tags, which are useful for
+grouping together everything that belongs to one of your apps.
+
+```ts
+const list = await jsonpad.createList({
+  name: 'Recipes',
+  tags: ['recipe-app', 'production'],
+});
+
+// Tags are lowercase: "Recipe-App" is stored as "recipe-app"
+await jsonpad.updateList(list.id, { tags: ['recipe-app', 'staging'] });
+```
+
+Setting `tags` replaces all of a resource's tags, and an empty array removes
+them. Tags can only contain `a-z`, `0-9`, `-` and `_`, and a resource can have
+up to 20 tags of up to 50 characters each.
+
+Use the `tagged` parameter to fetch resources by tag:
+
+```ts
+// Lists tagged "recipe-app"
+await jsonpad.fetchLists({ tagged: 'recipe-app' });
+
+// Lists tagged "recipe-app" or "cookbook-app"
+await jsonpad.fetchLists({ tagged: 'recipe-app,cookbook-app' });
+
+// Lists tagged both "recipe-app" and "production"
+await jsonpad.fetchLists({ tagged: ['recipe-app', 'production'] });
+```
+
+Identities can't set their own tags when registering or updating themselves.
+
 ## Contents
 
 ### Lists
@@ -221,6 +255,10 @@ function createList(
 
     // A short description of the list
     description?: string;
+
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
 
     // A case-insensitive name which can be used to refer to the list in API paths or SDK methods
     // Must be unique, and can only contain A-Z, a-z, 0-9, - and _
@@ -331,6 +369,10 @@ function fetchLists(
 
     // Filter lists by generative status
     generative?: boolean;
+
+    // Only fetch lists with these tags (see Tags). A comma-separated string matches any of the tags,
+    // and an array requires one match from every element
+    tagged?: string | string[];
   }
 ): Promise<PaginatedResponse<List>>;
 ```
@@ -580,6 +622,10 @@ function updateList(
     // A short description of the list
     description?: string;
 
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
+
     // A case-insensitive name which can be used to refer to the list in API paths or SDK methods
     // Must be unique, and can only contain A-Z, a-z, 0-9, - and _
     pathName?: string;
@@ -653,6 +699,10 @@ function createItem(
 
     // A short description of the item
     description?: string;
+
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
 
     // Manually set the item's version
     // Default is "1"
@@ -779,6 +829,10 @@ function fetchItems(
 
     // Set the identity token, or override cached identity token
     token?: string;
+
+    // Only fetch items with these tags (see Tags). A comma-separated string matches any of the tags,
+    // and an array requires one match from every element
+    tagged?: string | string[];
   }
 ): Promise<PaginatedResponse<Item>>;
 ```
@@ -862,6 +916,10 @@ function fetchItemsData<T = any>(
 
     // Set the identity token, or override cached identity token
     token?: string;
+
+    // Only fetch items with these tags (see Tags). A comma-separated string matches any of the tags,
+    // and an array requires one match from every element
+    tagged?: string | string[];
   }
 ): Promise<PaginatedResponse<T>>;
 ```
@@ -1220,6 +1278,10 @@ function updateItem(
     // A short description of the item
     description?: string;
 
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
+
     // Manually set the item's version
     // By default this will increment the current version number
     version?: string;
@@ -1511,6 +1573,10 @@ function createIndex(
     // A short description of the index
     description?: string;
 
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
+
     // The path name of index, used in API paths and SDK methods
     pathName: string;
 
@@ -1631,6 +1697,10 @@ function fetchIndexes(
     defaultOrderDirection?:
       | 'asc'
       | 'desc';
+
+    // Only fetch indexes with these tags (see Tags). A comma-separated string matches any of the tags,
+    // and an array requires one match from every element
+    tagged?: string | string[];
   }
 ): Promise<PaginatedResponse<Index>>;
 ```
@@ -1802,6 +1872,10 @@ function updateIndex(
     // A short description of the index
     description?: string;
 
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
+
     // The path name of index, used in API paths and SDK methods
     pathName?: string;
 
@@ -1889,6 +1963,10 @@ function createIdentity(
     // Unlike the name, this isn't used to log in
     displayName?: string | null;
 
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
+
     // The identity group
     group?: string;
 
@@ -1937,6 +2015,10 @@ function fetchIdentities(
 
     // Filter identities by display name (partial match, case-insensitive)
     displayName?: string;
+
+    // Only fetch identities with these tags (see Tags). A comma-separated string matches any of the tags,
+    // and an array requires one match from every element
+    tagged?: string | string[];
   }
 ): Promise<PaginatedResponse<Identity>>;
 ```
@@ -2096,6 +2178,10 @@ function updateIdentity(
     // A public name for the identity, e.g. to show who created an item
     // Set this to null to remove the display name
     displayName?: string | null;
+
+    // Tags for grouping related resources, e.g. ["app-x", "production"]
+    // Tags are lowercase and can only contain a-z, 0-9, - and _ (at most 20 tags, 50 characters each)
+    tags?: string[];
 
     // The identity group
     group?: string;

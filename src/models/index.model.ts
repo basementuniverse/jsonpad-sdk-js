@@ -6,6 +6,7 @@ export class Index {
   public updatedAt!: Date;
   public name!: string;
   public description!: string;
+  public tags!: string[];
   public pathName!: string;
   public pointer!: string;
   public valueType!: IndexValueType;

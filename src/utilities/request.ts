@@ -12,15 +12,19 @@ export default async function request<T = any>(
   identityGroup?: string,
   identityToken?: string
 ): Promise<{ data: T | null; meta: ResponseMeta }> {
+  // Array values become repeated parameters, e.g. { tagged: ['a', 'b'] } becomes
+  // ?tagged=a&tagged=b
   const parametersString = parameters
-    ? new URLSearchParams({
-        ...Object.fromEntries(
-          Object.entries(parameters).map(([key, value]) => [
-            key,
-            value.toString(),
-          ])
-        ),
-      })
+    ? new URLSearchParams(
+        Object.entries(parameters)
+          .filter(([, value]) => value !== undefined)
+          .flatMap(([key, value]) =>
+            (Array.isArray(value) ? value : [value]).map(v => [
+              key,
+              v.toString(),
+            ])
+          )
+      )
     : '';
   const headers: Record<string, string> = {
     [constants.API_TOKEN_HEADER]: token,
