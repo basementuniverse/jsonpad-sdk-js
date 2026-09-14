@@ -13,7 +13,8 @@ export type TokenPermission = {
     | 'view-with-identity'
     | 'update-with-identity'
     | 'delete-with-identity'
-    | 'restore-with-identity';
+    | 'restore-with-identity'
+    | 'sync-schema';
   resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
   listIds?: string[];
   itemIds?: string[];

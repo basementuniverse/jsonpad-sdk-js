@@ -32,7 +32,7 @@ type IdentityStats = {
 
 type IndexBuildStatus = 'ready' | 'building' | 'failed';
 
-type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted' | 'index-built' | 'index-build-failed';
+type IndexEventType = 'index-created' | 'index-updated' | 'index-deleted' | 'index-built' | 'index-build-failed' | 'index-build-requested';
 
 type IndexOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'pathName' | 'valueType' | 'alias' | 'sorting' | 'filtering' | 'searching' | 'guard' | 'defaultOrderDirection' | 'activated';
 
@@ -190,9 +190,148 @@ type SubscriptionPlan = {
     generativeAPI: boolean;
 };
 
+/**
+ * An index in a schema sync document. Fields that are left out are left as
+ * they are
+ */
+type SyncSchemaIndexDefinition = {
+    name?: string;
+    description?: string;
+    tags?: string[];
+    /**
+     * Required when the index is created
+     */
+    pointer?: string;
+    valueType?: IndexValueType;
+    alias?: boolean;
+    sorting?: boolean;
+    filtering?: boolean;
+    searching?: boolean;
+    guard?: boolean;
+    defaultOrderDirection?: OrderDirection;
+};
+/**
+ * A list in a schema sync document. Fields that are left out are left as they
+ * are
+ */
+type SyncSchemaListDefinition = {
+    name?: string;
+    description?: string;
+    tags?: string[];
+    schema?: Record<string, any> | null;
+    readonly?: boolean;
+    realtime?: boolean;
+    protected?: boolean;
+    indexable?: boolean;
+    generative?: boolean;
+    generativePrompt?: string | null;
+    /**
+     * Indexes, keyed by path name
+     */
+    indexes?: Record<string, SyncSchemaIndexDefinition>;
+};
+/**
+ * A description of lists and their indexes, applied with syncSchema
+ */
+type SyncSchemaDocument = {
+    $schema?: string;
+    /**
+     * The scope this document manages, e.g. the name of the app its lists
+     * belong to
+     */
+    scope?: string;
+    /**
+     * Lists, keyed by path name
+     */
+    lists: Record<string, SyncSchemaListDefinition>;
+};
+type SyncSchemaAction = 'create' | 'update' | 'adopt' | 'no-change' | 'error';
+type SyncSchemaError = {
+    name: string;
+    code: number;
+    message: string;
+};
+type SyncSchemaChange = {
+    resourceType: 'list' | 'index';
+    /**
+     * The list's path name
+     */
+    list: string;
+    /**
+     * The index's path name, for index changes
+     */
+    index?: string;
+    listId?: string;
+    indexId?: string;
+    action: SyncSchemaAction;
+    fields?: Record<string, {
+        from: any;
+        to: any;
+    }>;
+    build?: {
+        reason: 'created' | 'pointerChanged';
+        items: number;
+        requiresConfirmation: boolean;
+        buildStatus?: IndexBuildStatus;
+    };
+    warnings?: string[];
+    errors?: SyncSchemaError[];
+};
+type SyncSchemaResult = {
+    syncId: string;
+    dryRun: boolean;
+    applied: boolean;
+    scope: string | null;
+    summary: {
+        create: number;
+        update: number;
+        adopt: number;
+        noChange: number;
+        error: number;
+        builds: number;
+    };
+    changes: SyncSchemaChange[];
+    /**
+     * Why the sync wasn't applied (or, in a dry run, wouldn't be)
+     */
+    blockedBy: SyncSchemaError | null;
+};
+type SyncSchemaOptions = {
+    /**
+     * Return the plan without changing anything
+     */
+    dryRun?: boolean;
+    /**
+     * Allow changes that rebuild an index in a list that has items, which makes
+     * the index unusable until the rebuild finishes
+     */
+    allowRebuild?: boolean;
+};
+type ExportSchemaOptions = {
+    /**
+     * Only lists managed by this scope
+     */
+    scope?: string;
+    /**
+     * Only lists with these tags. A string can contain comma-separated tags
+     * (any of them), and an array requires a match for every element
+     */
+    tagged?: string | string[];
+    /**
+     * Only lists with these path names
+     */
+    lists?: string[];
+};
+type SyncSchemaExport = {
+    document: SyncSchemaDocument & {
+        $schema: string;
+    };
+    warnings: string[];
+};
+
 type TokenPermission = {
     mode: 'allow' | 'block';
-    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity';
+    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity' | 'sync-schema';
     resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
     listIds?: string[];
     itemIds?: string[];
@@ -474,15 +613,23 @@ declare class ResponseEvent extends globalThis.Event {
     constructor(detail: ResponseMeta);
 }
 
+type JSONPadOptions = {
+    /**
+     * The API's base URL, e.g. for a local development server. Defaults to
+     * https://api.jsonpad.io
+     */
+    apiUrl?: string;
+};
 declare class JSONPad extends EventTarget {
     private token;
     private identityGroup?;
     private identityToken?;
     private lastResponseMeta;
+    private apiUrl;
     /**
      * Create a new JSONPad client instance
      */
-    constructor(token: string, identityGroup?: string | undefined, identityToken?: string | undefined);
+    constructor(token: string, identityGroup?: string | undefined, identityToken?: string | undefined, options?: JSONPadOptions);
     /**
      * Rate limit and quota information from the most recent response, or null
      * if no requests have been made yet
@@ -753,6 +900,16 @@ declare class JSONPad extends EventTarget {
      */
     updateIndex(listId: string, indexId: string, data: Partial<Index>): Promise<Index>;
     /**
+     * Start a new build for an index whose last build failed
+     *
+     * Failed builds are never retried automatically, so fix the problem (e.g.
+     * items sharing an alias value) and then call this. The index is returned
+     * with `buildStatus: 'building'`; use waitForIndex to wait for it. Refused
+     * with a 409 INDEX_BUILD_NOT_FAILED error if the index is ready or already
+     * being built
+     */
+    rebuildIndex(listId: string, indexId: string): Promise<Index>;
+    /**
      * Wait for an index to finish building, and return it once it's ready
      *
      * An index is built in the background when it's created and when its pointer
@@ -761,7 +918,8 @@ declare class JSONPad extends EventTarget {
      * delay between checks grows from `interval` up to `maxInterval`.
      *
      * Throws an IndexBuildError if the build fails, or if the index isn't ready
-     * within `timeout` milliseconds
+     * within `timeout` milliseconds. A rate limited check is retried after the
+     * delay the API asks for, as long as that's within the timeout
      */
     waitForIndex(listId: string, indexId: string, options?: Partial<{
         timeout: number;
@@ -871,6 +1029,20 @@ declare class JSONPad extends EventTarget {
      * account's usage so far this month
      */
     fetchSelfToken(): Promise<TokenSelf>;
+    /**
+     * Create and update lists and indexes to match a schema sync document
+     *
+     * The result is returned whether or not the sync was applied: a sync is
+     * refused as a whole if any change has an error, or if a change would
+     * rebuild an index in a list with items and `allowRebuild` isn't set. Check
+     * `applied` and `blockedBy`. Other errors (e.g. an invalid document) throw a
+     * JSONPadError
+     */
+    syncSchema(document: SyncSchemaDocument, options?: SyncSchemaOptions): Promise<SyncSchemaResult>;
+    /**
+     * Describe existing lists and their indexes as a schema sync document
+     */
+    exportSchema(options?: ExportSchemaOptions): Promise<SyncSchemaExport>;
 }
 
-export { Event, type EventOrderBy, type EventStream, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };

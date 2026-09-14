@@ -62,6 +62,15 @@ const jsonpad = new JSONPad(
 );
 ```
 
+A fourth argument sets options. `apiUrl` points the SDK at a different API, e.g. a
+local development server:
+
+```ts
+const jsonpad = new JSONPad('your-api-token', undefined, undefined, {
+  apiUrl: 'http://localhost:8000',
+});
+```
+
 ## Rate limits and quotas
 
 Every response from the API includes information about your per-minute rate limit and your monthly quota. The SDK dispatches a `response` event with this information every time it receives a response, whether or not the request succeeded:
@@ -184,8 +193,14 @@ checks grows the longer the build takes.
 If you'd rather handle it yourself, an `INDEX_BUILDING` error is a
 [`JSONPadError`](#jsonpaderror) with `code` 16006 and a `retryAfter` saying how
 many seconds to wait. An index whose build failed has `buildStatus: 'failed'`,
-and requests that need it are refused with `INDEX_BUILD_FAILED` (16007). Fix the
-problem, then update the index (any update will do) to build it again.
+and requests that need it are refused with `INDEX_BUILD_FAILED` (16007). Failed
+builds aren't retried automatically: fix the problem, then call `rebuildIndex`
+to build it again.
+
+```ts
+await jsonpad.rebuildIndex('products', 'sku');
+await jsonpad.waitForIndex('products', 'sku');
+```
 
 Items can still be created, updated and deleted while an index is being built.
 
@@ -222,6 +237,99 @@ await jsonpad.fetchLists({ tagged: ['recipe-app', 'production'] });
 ```
 
 Identities can't set their own tags when registering or updating themselves.
+
+## Schema sync
+
+Describe your lists and their indexes in a document (usually a
+`jsonpad-schema.json` file in your repository), and `syncSchema` creates and
+updates them to match. Lists are keyed by path name and indexes by path name
+within their list, so a document contains no ids. Fields that are left out are
+left as they are, and nothing is ever deleted. See
+[Schema sync](https://jsonpad.io/docs/schema-sync) for how documents, scopes and
+rebuilds work.
+
+```ts
+import JSONPad, { SyncSchemaDocument } from '@basementuniverse/jsonpad-sdk';
+
+const document: SyncSchemaDocument = {
+  $schema: 'https://jsonpad.io/schema/sync-v1.json',
+  scope: 'recipe-app',
+  lists: {
+    recipes: {
+      name: 'Recipes',
+      indexable: true,
+      indexes: {
+        slug: { pointer: '/slug', alias: true },
+      },
+    },
+  },
+};
+
+// See what would change
+const plan = await jsonpad.syncSchema(document, { dryRun: true });
+
+// Apply it
+const result = await jsonpad.syncSchema(document);
+if (!result.applied) {
+  console.error(result.blockedBy?.message);
+}
+```
+
+A sync is all or nothing. If any change would be refused, or a change rebuilds
+an index in a list that has items and `allowRebuild` isn't set, nothing is
+changed. `syncSchema` still returns the plan in that case, with `applied: false`
+and the reason in `blockedBy`, so check `applied` rather than catching an error.
+
+`exportSchema` describes existing lists as a document, which is the easiest way
+to start using schema sync on an account you already have:
+
+```ts
+const { document, warnings } = await jsonpad.exportSchema({
+  tagged: 'recipe-app',
+});
+```
+
+The token needs the `sync-schema` permission, plus the permission for each
+change a sync makes.
+
+## Command line tool
+
+The package includes a `jsonpad` command for syncing schema documents, e.g. in
+a deploy script or CI. It needs Node.js 18.3 or later, and reads the API token
+from the `JSONPAD_TOKEN` environment variable.
+
+```bash
+# Without installing anything
+npx @basementuniverse/jsonpad-sdk sync-schema --dry-run
+
+# Or, with the SDK installed in your project
+npx jsonpad sync-schema --dry-run
+```
+
+```
+jsonpad sync-schema [file]            Sync a document (default: jsonpad-schema.json)
+  --dry-run                           Show what would change, without changing it
+  --allow-rebuild                     Allow changes that rebuild an index in a list with items
+  --wait                              Wait for index builds to finish
+  --timeout <seconds>                 How long --wait waits for each index (default 600)
+  --show-unchanged                    Also list resources that don't change
+  --json                              Print the API's response as JSON
+
+jsonpad export-schema                 Write a document for existing lists
+  --scope <scope>                     Only lists managed by this scope
+  --tagged <tags>                     Only lists with one of these comma-separated tags
+  --lists <path names>                Only these comma-separated lists
+  --out <file>                        Write to a file instead of stdout
+
+jsonpad rebuild-index <list> <index>  Rebuild an index whose last build failed
+  --wait                              Wait for the build to finish
+```
+
+`JSONPAD_API_URL` sets the API's URL, and `NO_COLOR` turns off coloured output.
+
+Exit codes: `0` success, `1` error (including a sync refused because a change has
+errors), `2` a sync that needs `--allow-rebuild`, `3` an index build that failed
+or didn't finish while waiting. A dry run exits the same way the real sync would.
 
 ## Contents
 
@@ -265,6 +373,7 @@ Identities can't set their own tags when registering or updating themselves.
 - [Fetch index events](#fetch-index-events)
 - [Fetch an index event](#fetch-an-index-event)
 - [Update an index](#update-an-index)
+- [Rebuild an index](#rebuild-an-index)
 - [Delete an index](#delete-an-index)
 
 ### Identities
@@ -287,6 +396,11 @@ Identities can't set their own tags when registering or updating themselves.
 ### Tokens
 
 - [Fetch the current token](#fetch-the-current-token)
+
+### Schema sync
+
+- [Sync a schema](#sync-a-schema)
+- [Export a schema](#export-a-schema)
 
 ## SDK Reference
 
@@ -1790,7 +1904,9 @@ const index: Index = await jsonpad.fetchIndex(
 
 Resolves with the index once its `buildStatus` is `'ready'`. Throws an
 [`IndexBuildError`](#indexbuilderror) if the build fails, or if the index isn't
-ready before the timeout. See [Index builds](#index-builds).
+ready before the timeout. A check that's rate limited is retried after the delay
+the API asks for, as long as that's before the timeout. See
+[Index builds](#index-builds).
 
 ```ts
 function waitForIndex(
@@ -2017,6 +2133,29 @@ const index: Index = await jsonpad.updateIndex(
     searching: true,
     defaultOrderDirection: 'asc',
   }
+);
+```
+
+### Rebuild an index
+
+Start a new build for an index whose last build failed, once the problem has
+been fixed. Returns the index with `buildStatus: 'building'`. Only a failed
+index can be rebuilt: an index that is ready or already building is refused
+with `INDEX_BUILD_NOT_FAILED` (16008). See [Index builds](#index-builds).
+
+```ts
+function rebuildIndex(
+  listId: string, // The list id or path name
+  indexId: string // The index id or path name
+): Promise<Index>;
+```
+
+Example:
+
+```ts
+const index: Index = await jsonpad.rebuildIndex(
+  '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
+  '9963146e-aa36-46f9-9f63-497ab9e5d1c6'
 );
 ```
 
@@ -2510,6 +2649,63 @@ const self: TokenSelf = await jsonpad.fetchSelfToken();
 console.log(`${self.usage.requestsRemaining} requests left this month`);
 ```
 
+### Sync a schema
+
+Create and update lists and indexes to match a document. See
+[Schema sync](#schema-sync). Returns the plan whether or not it was applied;
+other errors, e.g. an invalid document, throw a [`JSONPadError`](#jsonpaderror).
+
+```ts
+function syncSchema(
+  document: SyncSchemaDocument,
+  options?: {
+    // Return the plan without changing anything
+    dryRun?: boolean;
+
+    // Allow changes that rebuild an index in a list that has items
+    allowRebuild?: boolean;
+  }
+): Promise<SyncSchemaResult>;
+```
+
+Example:
+
+```ts
+const result: SyncSchemaResult = await jsonpad.syncSchema(document, {
+  allowRebuild: true,
+});
+
+for (const change of result.changes) {
+  console.log(change.action, change.list, change.index ?? '');
+}
+```
+
+### Export a schema
+
+Describe existing lists and their indexes as a document. Filters can be
+combined.
+
+```ts
+function exportSchema(options?: {
+  // Only lists managed by this scope
+  scope?: string;
+
+  // Only lists with these tags (see Tags)
+  tagged?: string | string[];
+
+  // Only lists with these path names
+  lists?: string[];
+}): Promise<SyncSchemaExport>;
+```
+
+Example:
+
+```ts
+const { document, warnings }: SyncSchemaExport = await jsonpad.exportSchema({
+  scope: 'recipe-app',
+});
+```
+
 ## Types
 
 The SDK includes TypeScript types for the JSONPad API. You can import them like so:
@@ -2770,7 +2966,8 @@ type IndexEventType =
   | 'index-updated'
   | 'index-deleted'
   | 'index-built'
-  | 'index-build-failed';
+  | 'index-build-failed'
+  | 'index-build-requested';
 ```
 
 ### `IndexOrderBy`
@@ -3025,7 +3222,8 @@ type TokenPermission = {
     | 'view-with-identity'
     | 'update-with-identity'
     | 'delete-with-identity'
-    | 'restore-with-identity';
+    | 'restore-with-identity'
+    | 'sync-schema';
   resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
   listIds?: string[];
   itemIds?: string[];
@@ -3185,4 +3383,96 @@ class IndexBuildError extends Error {
   // The index as it was when waiting stopped
   index: Index;
 }
+```
+
+### `SyncSchemaDocument`
+
+```ts
+type SyncSchemaDocument = {
+  $schema?: string;
+  scope?: string;
+
+  // Keyed by path name
+  lists: Record<string, SyncSchemaListDefinition>;
+};
+
+type SyncSchemaListDefinition = {
+  name?: string;
+  description?: string;
+  tags?: string[];
+  schema?: Record<string, any> | null;
+  readonly?: boolean;
+  realtime?: boolean;
+  protected?: boolean;
+  indexable?: boolean;
+  generative?: boolean;
+  generativePrompt?: string | null;
+
+  // Keyed by path name
+  indexes?: Record<string, SyncSchemaIndexDefinition>;
+};
+
+type SyncSchemaIndexDefinition = {
+  name?: string;
+  description?: string;
+  tags?: string[];
+  pointer?: string; // Required when the index is created
+  valueType?: 'string' | 'number' | 'date';
+  alias?: boolean;
+  sorting?: boolean;
+  filtering?: boolean;
+  searching?: boolean;
+  guard?: boolean;
+  defaultOrderDirection?: 'asc' | 'desc';
+};
+```
+
+### `SyncSchemaResult`
+
+```ts
+type SyncSchemaResult = {
+  syncId: string;
+  dryRun: boolean;
+  applied: boolean;
+  scope: string | null;
+  summary: {
+    create: number;
+    update: number;
+    adopt: number;
+    noChange: number;
+    error: number;
+    builds: number;
+  };
+  changes: SyncSchemaChange[];
+
+  // Why the sync wasn't applied (or, in a dry run, wouldn't be)
+  blockedBy: { name: string; code: number; message: string } | null;
+};
+
+type SyncSchemaChange = {
+  resourceType: 'list' | 'index';
+  list: string;
+  index?: string;
+  listId?: string;
+  indexId?: string;
+  action: 'create' | 'update' | 'adopt' | 'no-change' | 'error';
+  fields?: Record<string, { from: any; to: any }>;
+  build?: {
+    reason: 'created' | 'pointerChanged';
+    items: number;
+    requiresConfirmation: boolean;
+    buildStatus?: IndexBuildStatus;
+  };
+  warnings?: string[];
+  errors?: { name: string; code: number; message: string }[];
+};
+```
+
+### `SyncSchemaExport`
+
+```ts
+type SyncSchemaExport = {
+  document: SyncSchemaDocument & { $schema: string };
+  warnings: string[];
+};
 ```

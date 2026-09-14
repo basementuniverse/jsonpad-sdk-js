@@ -8,6 +8,26 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [Unreleased]
+
+### Added
+
+- `rebuildIndex()`, which starts a new build for an index whose last build
+  failed. Failed builds are never retried automatically.
+- `'index-build-requested'` in `IndexEventType`.
+- `syncSchema()` and `exportSchema()` for schema sync, with the
+  `SyncSchemaDocument`, `SyncSchemaResult` and `SyncSchemaExport` types, and
+  `'sync-schema'` in `TokenPermission`.
+- A `jsonpad` command line tool (`npx @basementuniverse/jsonpad-sdk`) with
+  `sync-schema`, `export-schema` and `rebuild-index` commands.
+- An optional fourth constructor argument, `{ apiUrl }`, for pointing the SDK
+  at a different API.
+
+### Changed
+
+- `waitForIndex()` retries a check that was rate limited after the delay the API
+  asks for, instead of throwing, as long as that's within the timeout.
+
 ## [1.11.0] - 2026-09-13
 
 Indexes are now built in the background by the platform, so an index is not

@@ -23,6 +23,7 @@ export * from './response-meta';
 export * from './search-result';
 export * from './stats';
 export * from './subscription-plan';
+export * from './sync-schema';
 export * from './token-permission';
 export * from './token-self';
 export * from './usage';

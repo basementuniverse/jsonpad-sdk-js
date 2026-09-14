@@ -1,3 +1,4 @@
+import * as constants from './constants';
 import { IndexBuildError, JSONPadError } from './errors';
 import { ResponseEvent } from './events';
 import { Event, Identity, Index, Item, List, Token } from './models';
@@ -23,14 +24,29 @@ import {
   PaginatedResponse,
   ResponseMeta,
   SearchResult,
+  ExportSchemaOptions,
+  SyncSchemaDocument,
+  SyncSchemaExport,
+  SyncSchemaOptions,
+  SyncSchemaResult,
   TokenSelf,
   Usage,
 } from './types';
 import exclude from './utilities/exclude';
 import sendRequest from './utilities/request';
 
+export type JSONPadOptions = {
+  /**
+   * The API's base URL, e.g. for a local development server. Defaults to
+   * https://api.jsonpad.io
+   */
+  apiUrl?: string;
+};
+
 export class JSONPad extends EventTarget {
   private lastResponseMeta: ResponseMeta | null = null;
+
+  private apiUrl: string;
 
   /**
    * Create a new JSONPad client instance
@@ -38,9 +54,11 @@ export class JSONPad extends EventTarget {
   public constructor(
     private token: string,
     private identityGroup?: string,
-    private identityToken?: string
+    private identityToken?: string,
+    options: JSONPadOptions = {}
   ) {
     super();
+    this.apiUrl = (options.apiUrl ?? constants.API_URL).replace(/\/+$/, '');
   }
 
   /**
@@ -107,8 +125,19 @@ export class JSONPad extends EventTarget {
   private async request<T = any>(
     ...args: Parameters<typeof sendRequest>
   ): Promise<T | null> {
+    const [token, method, path, parameters, body, group, identityToken] = args;
+
     try {
-      const { data, meta } = await sendRequest<T>(...args);
+      const { data, meta } = await sendRequest<T>(
+        token,
+        method,
+        path,
+        parameters,
+        body,
+        group,
+        identityToken,
+        this.apiUrl
+      );
       this.handleResponse(meta);
 
       return data;
@@ -900,6 +929,25 @@ export class JSONPad extends EventTarget {
   }
 
   /**
+   * Start a new build for an index whose last build failed
+   *
+   * Failed builds are never retried automatically, so fix the problem (e.g.
+   * items sharing an alias value) and then call this. The index is returned
+   * with `buildStatus: 'building'`; use waitForIndex to wait for it. Refused
+   * with a 409 INDEX_BUILD_NOT_FAILED error if the index is ready or already
+   * being built
+   */
+  public async rebuildIndex(listId: string, indexId: string): Promise<Index> {
+    return new Index(
+      (await this.request<ConstructorParameters<typeof Index>[0]>(
+        this.token,
+        'POST',
+        `/lists/${listId}/indexes/${indexId}/rebuild`
+      ))!
+    );
+  }
+
+  /**
    * Wait for an index to finish building, and return it once it's ready
    *
    * An index is built in the background when it's created and when its pointer
@@ -908,7 +956,8 @@ export class JSONPad extends EventTarget {
    * delay between checks grows from `interval` up to `maxInterval`.
    *
    * Throws an IndexBuildError if the build fails, or if the index isn't ready
-   * within `timeout` milliseconds
+   * within `timeout` milliseconds. A rate limited check is retried after the
+   * delay the API asks for, as long as that's within the timeout
    */
   public async waitForIndex(
     listId: string,
@@ -925,7 +974,25 @@ export class JSONPad extends EventTarget {
     const deadline = Date.now() + timeout;
 
     for (;;) {
-      const index = await this.fetchIndex(listId, indexId);
+      let index: Index;
+
+      try {
+        index = await this.fetchIndex(listId, indexId);
+      } catch (error) {
+        // Being rate limited doesn't mean the build has failed, so wait as long
+        // as the API asks (if that's within the timeout) and check again
+        if (!(error instanceof JSONPadError) || error.status !== 429) {
+          throw error;
+        }
+
+        const wait = (error.retryAfter ?? interval / 1000) * 1000;
+        if (Date.now() + wait > deadline) {
+          throw error;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, wait));
+        continue;
+      }
 
       if (index.buildStatus === 'ready') {
         return index;
@@ -1278,6 +1345,74 @@ export class JSONPad extends EventTarget {
         periodEnd: new Date(result.usage.periodEnd),
       },
     };
+  }
+
+  // #endregion
+
+  // ---------------------------------------------------------------------------
+  // SCHEMA SYNC
+  // #region schema sync
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create and update lists and indexes to match a schema sync document
+   *
+   * The result is returned whether or not the sync was applied: a sync is
+   * refused as a whole if any change has an error, or if a change would
+   * rebuild an index in a list with items and `allowRebuild` isn't set. Check
+   * `applied` and `blockedBy`. Other errors (e.g. an invalid document) throw a
+   * JSONPadError
+   */
+  public async syncSchema(
+    document: SyncSchemaDocument,
+    options: SyncSchemaOptions = {}
+  ): Promise<SyncSchemaResult> {
+    try {
+      return (await this.request<SyncSchemaResult>(
+        this.token,
+        'POST',
+        '/sync-schema',
+        {
+          dryRun: options.dryRun || undefined,
+          allowRebuild: options.allowRebuild || undefined,
+        },
+        document
+      ))!;
+    } catch (error) {
+      // A refused sync still describes its plan
+      if (error instanceof JSONPadError && error.status === 422) {
+        let body: any = null;
+        try {
+          body = JSON.parse(error.message);
+        } catch {}
+
+        if (body && Array.isArray(body.changes)) {
+          const { name, code, message, ...result } = body;
+
+          return result as SyncSchemaResult;
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Describe existing lists and their indexes as a schema sync document
+   */
+  public async exportSchema(
+    options: ExportSchemaOptions = {}
+  ): Promise<SyncSchemaExport> {
+    return (await this.request<SyncSchemaExport>(
+      this.token,
+      'GET',
+      '/sync-schema',
+      {
+        scope: options.scope,
+        tagged: options.tagged,
+        lists: options.lists?.join(','),
+      }
+    ))!;
   }
 
   // #endregion

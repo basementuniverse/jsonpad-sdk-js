@@ -10,7 +10,8 @@ export default async function request<T = any>(
   parameters?: Record<string, any>,
   body?: any,
   identityGroup?: string,
-  identityToken?: string
+  identityToken?: string,
+  apiUrl: string = constants.API_URL
 ): Promise<{ data: T | null; meta: ResponseMeta }> {
   // Array values become repeated parameters, e.g. { tagged: ['a', 'b'] } becomes
   // ?tagged=a&tagged=b
@@ -39,14 +40,11 @@ export default async function request<T = any>(
     headers[constants.IDENTITY_TOKEN_HEADER] = identityToken;
   }
 
-  const response = await fetch(
-    `${constants.API_URL}${path}?${parametersString}`,
-    {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    }
-  );
+  const response = await fetch(`${apiUrl}${path}?${parametersString}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
 
   const meta = parseResponseMeta(response);
 
