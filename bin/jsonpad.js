@@ -23,6 +23,7 @@ const EXIT_OK = 0;
 const EXIT_ERROR = 1;
 const EXIT_REBUILD_NOT_ALLOWED = 2;
 const EXIT_BUILD_FAILED = 3;
+const EXIT_DESTRUCTIVE_NOT_ALLOWED = 4;
 
 const HELP = `jsonpad ${version}
 
@@ -35,6 +36,10 @@ Commands:
     --allow-rebuild             Allow changes that rebuild an index in a list
                                 with items (the index can't be used until the
                                 rebuild finishes)
+    --prune                     Also delete the lists and indexes the document's
+                                scope manages that it no longer declares
+    --allow-destructive         Allow a prune to delete lists that have items,
+                                and guard indexes
     --wait                      Wait for index builds to finish
     --timeout <seconds>         How long --wait waits for each index (default 600)
     --show-unchanged            Also list resources that don't change
@@ -46,6 +51,15 @@ Commands:
                                 tags (repeat the option to require every group)
     --lists <path names>        Only these comma-separated lists
     --out <file>                Write the document to a file, not stdout
+
+  move-lists [list...]          Move lists (by id or path name) to a scope, or
+                                release them from their scope
+    --to <scope>                The scope to move the lists to
+    --release                   Release the lists from their scope instead
+    --from-scope <scope>        Move every list this scope manages, instead of
+                                naming lists (e.g. to rename the scope)
+    --dry-run                   Show what would change, without changing it
+    --json                      Print the API's response as JSON
 
   rebuild-index <list> <index>  Rebuild an index whose last build failed, once
                                 the problem has been fixed
@@ -68,6 +82,7 @@ Exit codes:
   1  Error, including a sync refused because a change has errors
   2  A sync was refused because it needs --allow-rebuild
   3  An index build failed, or didn't finish in time, while waiting
+  4  A sync was refused because it needs --allow-destructive
 `;
 
 // -----------------------------------------------------------------------------
@@ -185,9 +200,14 @@ const ACTION_SYMBOLS = {
   create: green('+'),
   update: yellow('~'),
   adopt: cyan('@'),
+  delete: red('-'),
   'no-change': dim('='),
   error: red('!'),
 };
+
+function plural(count, singular, pluralForm = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
 
 function printChange(change) {
   const name =
@@ -204,9 +224,22 @@ function printChange(change) {
         })`
       )
     : '';
+  const deleteDetails = change.delete
+    ? [
+        ...(change.delete.items !== undefined
+          ? [plural(change.delete.items, 'item')]
+          : []),
+        ...(change.delete.indexes !== undefined
+          ? [plural(change.delete.indexes, 'index', 'indexes')]
+          : []),
+        ...(change.delete.destructive ? ['needs --allow-destructive'] : []),
+      ]
+    : [];
+  const deleted =
+    deleteDetails.length > 0 ? dim(` (${deleteDetails.join(', ')})`) : '';
 
   console.log(
-    `${ACTION_SYMBOLS[change.action]} ${name} ${dim(action)}${build}`
+    `${ACTION_SYMBOLS[change.action]} ${name} ${dim(action)}${build}${deleted}`
   );
 
   for (const [field, { from, to }] of Object.entries(change.fields || {})) {
@@ -232,6 +265,7 @@ function printSummary(result) {
     `${summary.create} to create`,
     `${summary.update} to update`,
     `${summary.adopt} to adopt`,
+    ...(result.prune ? [`${summary.delete} to delete`] : []),
     `${summary.noChange} unchanged`,
   ];
 
@@ -263,6 +297,8 @@ async function syncSchema(positionals, values) {
     result = await jsonpad.syncSchema(document, {
       dryRun: !!values['dry-run'],
       allowRebuild: !!values['allow-rebuild'],
+      prune: !!values.prune,
+      allowDestructive: !!values['allow-destructive'],
     });
   } catch (error) {
     throw new CliError(describeApiError(error));
@@ -296,26 +332,38 @@ async function syncSchema(positionals, values) {
   }
 
   if (result.blockedBy) {
-    const rebuild = result.blockedBy.name === 'SCHEMA_SYNC_REBUILD_NOT_ALLOWED';
-
     // The API's message names the query parameter, not the CLI option
-    const message = rebuild
+    const flags = {
+      SCHEMA_SYNC_REBUILD_NOT_ALLOWED: {
+        parameter: 'allowRebuild',
+        option: '--allow-rebuild',
+        exitCode: EXIT_REBUILD_NOT_ALLOWED,
+      },
+      SCHEMA_SYNC_DESTRUCTIVE_NOT_ALLOWED: {
+        parameter: 'allowDestructive',
+        option: '--allow-destructive',
+        exitCode: EXIT_DESTRUCTIVE_NOT_ALLOWED,
+      },
+    };
+    const flag = flags[result.blockedBy.name];
+    const message = flag
       ? `${result.blockedBy.message.replace(
-          / \(pass allowRebuild=true to allow this\)$/,
+          ` (pass ${flag.parameter}=true to allow this)`,
           ''
-        )}. Run again with --allow-rebuild to allow this`
+        )}. Run again with ${flag.option} to allow this`
       : result.blockedBy.message;
 
     throw new CliError(
       result.dryRun ? `A real sync would be refused: ${message}` : message,
-      rebuild ? EXIT_REBUILD_NOT_ALLOWED : EXIT_ERROR
+      flag ? flag.exitCode : EXIT_ERROR
     );
   }
 
   if (!values.json) {
     const { create, update, adopt } = result.summary;
+    const deletes = result.summary.delete || 0;
 
-    if (create + update + adopt === 0) {
+    if (create + update + adopt + deletes === 0) {
       console.log(green('Already up to date'));
     } else {
       console.log(
@@ -379,6 +427,133 @@ async function exportSchema(positionals, values) {
 }
 
 // -----------------------------------------------------------------------------
+// move-lists
+// -----------------------------------------------------------------------------
+
+const MOVE_ACTION_SYMBOLS = {
+  move: cyan('>'),
+  assign: green('+'),
+  release: yellow('-'),
+  'no-change': dim('='),
+  error: red('!'),
+};
+
+const scopeName = scope => (scope === null ? dim('no scope') : scope);
+
+function printMoveChange(change) {
+  const action = change.action === 'no-change' ? 'no change' : change.action;
+  const scopes =
+    change.from !== undefined && change.action !== 'no-change'
+      ? ` ${scopeName(change.from)} ${dim('->')} ${scopeName(change.to)}`
+      : '';
+  const indexes =
+    change.indexes !== undefined
+      ? dim(` (${plural(change.indexes, 'index', 'indexes')})`)
+      : '';
+
+  console.log(
+    `${MOVE_ACTION_SYMBOLS[change.action]} list ${bold(change.list)} ${dim(
+      action
+    )}${scopes}${indexes}`
+  );
+
+  for (const [field, { from, to }] of Object.entries(change.fields || {})) {
+    console.log(
+      `    ${field}: ${formatValue(from)} ${dim('->')} ${formatValue(to)}`
+    );
+  }
+
+  for (const warning of change.warnings || []) {
+    console.log(`    ${yellow('warning')}: ${warning}`);
+  }
+
+  for (const error of change.errors || []) {
+    console.log(`    ${red('error')}: ${error.message}`);
+  }
+}
+
+async function moveLists(positionals, values) {
+  const usage =
+    'Usage: jsonpad move-lists [list...] (--to <scope> | --release) [--from-scope <scope>]';
+
+  if (!!values.to === !!values.release) {
+    throw new CliError(`Pass either --to <scope> or --release. ${usage}`);
+  }
+
+  if (positionals.length > 0 === !!values['from-scope']) {
+    throw new CliError(
+      `Name the lists to move, or pass --from-scope, but not both. ${usage}`
+    );
+  }
+
+  const jsonpad = createClient();
+  const selection = values['from-scope']
+    ? { fromScope: values['from-scope'] }
+    : { lists: positionals };
+  let result;
+
+  try {
+    result = await jsonpad.moveLists(
+      selection,
+      values.release ? null : values.to,
+      { dryRun: !!values['dry-run'] }
+    );
+  } catch (error) {
+    throw new CliError(describeApiError(error));
+  }
+
+  if (values.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(
+      bold(result.dryRun ? 'Move lists plan (dry run)' : 'Move lists') +
+        dim(result.scope ? ` to scope ${result.scope}` : ' out of their scope')
+    );
+    console.log('');
+
+    for (const warning of result.warnings) {
+      console.log(`${yellow('warning')}: ${warning}`);
+    }
+    if (result.changes.length === 0 && result.warnings.length === 0) {
+      console.log(dim('No lists to move'));
+    }
+    result.changes.forEach(printMoveChange);
+
+    const { summary } = result;
+    const parts = [
+      `${summary.move} to move`,
+      `${summary.assign} to assign`,
+      `${summary.release} to release`,
+      `${summary.noChange} unchanged`,
+    ];
+    if (summary.error > 0) {
+      parts.push(red(`${summary.error} with errors`));
+    }
+    console.log(`\n${parts.join(', ')}`);
+  }
+
+  if (result.blockedBy) {
+    throw new CliError(
+      result.dryRun
+        ? `A real move would be refused: ${result.blockedBy.message}`
+        : result.blockedBy.message
+    );
+  }
+
+  if (!values.json) {
+    const { move, assign, release } = result.summary;
+
+    if (move + assign + release === 0) {
+      console.log(green('Nothing to change'));
+    } else {
+      console.log(
+        result.applied ? green('Applied') : dim('Not applied (dry run)')
+      );
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
 // rebuild-index
 // -----------------------------------------------------------------------------
 
@@ -425,6 +600,8 @@ const COMMANDS = {
     options: {
       'dry-run': { type: 'boolean' },
       'allow-rebuild': { type: 'boolean' },
+      prune: { type: 'boolean' },
+      'allow-destructive': { type: 'boolean' },
       wait: { type: 'boolean' },
       timeout: { type: 'string' },
       'show-unchanged': { type: 'boolean' },
@@ -438,6 +615,16 @@ const COMMANDS = {
       tagged: { type: 'string', multiple: true },
       lists: { type: 'string' },
       out: { type: 'string' },
+    },
+  },
+  'move-lists': {
+    run: moveLists,
+    options: {
+      to: { type: 'string' },
+      release: { type: 'boolean' },
+      'from-scope': { type: 'string' },
+      'dry-run': { type: 'boolean' },
+      json: { type: 'boolean' },
     },
   },
   'rebuild-index': {

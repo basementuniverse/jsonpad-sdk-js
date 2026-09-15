@@ -25,6 +25,9 @@ import {
   ResponseMeta,
   SearchResult,
   ExportSchemaOptions,
+  MoveListsOptions,
+  MoveListsResult,
+  MoveListsSelection,
   SyncSchemaDocument,
   SyncSchemaExport,
   SyncSchemaOptions,
@@ -1355,41 +1358,76 @@ export class JSONPad extends EventTarget {
   // ---------------------------------------------------------------------------
 
   /**
-   * Create and update lists and indexes to match a schema sync document
+   * Create and update lists and indexes to match a schema sync document, and
+   * with `prune`, delete the ones its scope manages that it no longer declares
    *
    * The result is returned whether or not the sync was applied: a sync is
-   * refused as a whole if any change has an error, or if a change would
-   * rebuild an index in a list with items and `allowRebuild` isn't set. Check
-   * `applied` and `blockedBy`. Other errors (e.g. an invalid document) throw a
-   * JSONPadError
+   * refused as a whole if any change has an error, if a change would rebuild
+   * an index in a list with items and `allowRebuild` isn't set, or if a prune
+   * would delete a list that has items (or a guard index) and
+   * `allowDestructive` isn't set. Check `applied` and `blockedBy`. Other
+   * errors (e.g. an invalid document) throw a JSONPadError
    */
   public async syncSchema(
     document: SyncSchemaDocument,
     options: SyncSchemaOptions = {}
   ): Promise<SyncSchemaResult> {
+    return this.requestPlan<SyncSchemaResult>(
+      '/sync-schema',
+      {
+        dryRun: options.dryRun || undefined,
+        allowRebuild: options.allowRebuild || undefined,
+        prune: options.prune || undefined,
+        allowDestructive: options.allowDestructive || undefined,
+      },
+      document
+    );
+  }
+
+  /**
+   * Move lists to a schema sync scope, or release them from their scope by
+   * passing null
+   *
+   * Lists can be chosen by id or path name, or every list a scope manages can
+   * be moved at once (e.g. to rename the scope). A list no scope manages is
+   * assigned to the scope. The scope's tag moves with each list. Like a sync,
+   * a move is all or nothing, and the result is returned whether or not it
+   * was applied: check `applied` and `blockedBy`
+   */
+  public async moveLists(
+    selection: MoveListsSelection,
+    scope: string | null,
+    options: MoveListsOptions = {}
+  ): Promise<MoveListsResult> {
+    return this.requestPlan<MoveListsResult>(
+      '/sync-schema/move',
+      { dryRun: options.dryRun || undefined },
+      { ...selection, scope }
+    );
+  }
+
+  /**
+   * Send a schema sync request whose response is a plan. A refused plan is
+   * returned rather than thrown, because it describes why it was refused
+   */
+  private async requestPlan<T>(
+    path: string,
+    query: Record<string, any>,
+    body: any
+  ): Promise<T> {
     try {
-      return (await this.request<SyncSchemaResult>(
-        this.token,
-        'POST',
-        '/sync-schema',
-        {
-          dryRun: options.dryRun || undefined,
-          allowRebuild: options.allowRebuild || undefined,
-        },
-        document
-      ))!;
+      return (await this.request<T>(this.token, 'POST', path, query, body))!;
     } catch (error) {
-      // A refused sync still describes its plan
       if (error instanceof JSONPadError && error.status === 422) {
-        let body: any = null;
+        let responseBody: any = null;
         try {
-          body = JSON.parse(error.message);
+          responseBody = JSON.parse(error.message);
         } catch {}
 
-        if (body && Array.isArray(body.changes)) {
-          const { name, code, message, ...result } = body;
+        if (responseBody && Array.isArray(responseBody.changes)) {
+          const { name, code, message, ...result } = responseBody;
 
-          return result as SyncSchemaResult;
+          return result as T;
         }
       }
 

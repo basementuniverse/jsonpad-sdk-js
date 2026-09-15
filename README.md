@@ -244,9 +244,9 @@ Describe your lists and their indexes in a document (usually a
 `jsonpad-schema.json` file in your repository), and `syncSchema` creates and
 updates them to match. Lists are keyed by path name and indexes by path name
 within their list, so a document contains no ids. Fields that are left out are
-left as they are, and nothing is ever deleted. See
-[Schema sync](https://jsonpad.io/docs/schema-sync) for how documents, scopes and
-rebuilds work.
+left as they are, and nothing is deleted unless you ask for a prune. See
+[Schema sync](https://jsonpad.io/docs/schema-sync) for how documents, scopes,
+rebuilds and pruning work.
 
 ```ts
 import JSONPad, { SyncSchemaDocument } from '@basementuniverse/jsonpad-sdk';
@@ -280,6 +280,33 @@ an index in a list that has items and `allowRebuild` isn't set, nothing is
 changed. `syncSchema` still returns the plan in that case, with `applied: false`
 and the reason in `blockedBy`, so check `applied` rather than catching an error.
 
+With `prune: true`, a sync also deletes the lists and indexes that the
+document's scope manages but the document no longer declares. Only resources a
+previous sync with the same scope declared are ever deleted. Deleting a list
+that has items, or a guard index, also needs `allowDestructive: true`:
+
+```ts
+const result = await jsonpad.syncSchema(document, {
+  prune: true,
+  allowDestructive: true,
+});
+```
+
+`moveLists` moves lists to another scope, assigns lists that no scope manages to
+a scope, or releases them from their scope (pass `null`). The scope's tag moves
+with each list:
+
+```ts
+// Move lists by id or path name
+await jsonpad.moveLists({ lists: ['recipes'] }, 'cookbook-app');
+
+// Rename a scope
+await jsonpad.moveLists({ fromScope: 'recipe-app' }, 'cookbook-app');
+
+// Stop managing a list with schema sync
+await jsonpad.moveLists({ lists: ['recipes'] }, null);
+```
+
 `exportSchema` describes existing lists as a document, which is the easiest way
 to start using schema sync on an account you already have:
 
@@ -310,6 +337,8 @@ npx jsonpad sync-schema --dry-run
 jsonpad sync-schema [file]            Sync a document (default: jsonpad-schema.json)
   --dry-run                           Show what would change, without changing it
   --allow-rebuild                     Allow changes that rebuild an index in a list with items
+  --prune                             Also delete what the scope manages but the document no longer declares
+  --allow-destructive                 Allow a prune to delete lists that have items, and guard indexes
   --wait                              Wait for index builds to finish
   --timeout <seconds>                 How long --wait waits for each index (default 600)
   --show-unchanged                    Also list resources that don't change
@@ -321,6 +350,13 @@ jsonpad export-schema                 Write a document for existing lists
   --lists <path names>                Only these comma-separated lists
   --out <file>                        Write to a file instead of stdout
 
+jsonpad move-lists [list...]          Move lists to a scope, or release them from their scope
+  --to <scope>                        The scope to move the lists to
+  --release                           Release the lists from their scope instead
+  --from-scope <scope>                Move every list this scope manages (e.g. to rename it)
+  --dry-run                           Show what would change, without changing it
+  --json                              Print the API's response as JSON
+
 jsonpad rebuild-index <list> <index>  Rebuild an index whose last build failed
   --wait                              Wait for the build to finish
 ```
@@ -329,7 +365,8 @@ jsonpad rebuild-index <list> <index>  Rebuild an index whose last build failed
 
 Exit codes: `0` success, `1` error (including a sync refused because a change has
 errors), `2` a sync that needs `--allow-rebuild`, `3` an index build that failed
-or didn't finish while waiting. A dry run exits the same way the real sync would.
+or didn't finish while waiting, `4` a sync that needs `--allow-destructive`. A
+dry run exits the same way the real sync would.
 
 ## Contents
 
@@ -401,6 +438,7 @@ or didn't finish while waiting. A dry run exits the same way the real sync would
 
 - [Sync a schema](#sync-a-schema)
 - [Export a schema](#export-a-schema)
+- [Move lists between scopes](#move-lists-between-scopes)
 
 ## SDK Reference
 
@@ -2664,6 +2702,12 @@ function syncSchema(
 
     // Allow changes that rebuild an index in a list that has items
     allowRebuild?: boolean;
+
+    // Also delete what the document's scope manages but no longer declares
+    prune?: boolean;
+
+    // Allow a prune to delete lists that have items, and guard indexes
+    allowDestructive?: boolean;
   }
 ): Promise<SyncSchemaResult>;
 ```
@@ -2706,6 +2750,35 @@ const { document, warnings }: SyncSchemaExport = await jsonpad.exportSchema({
 });
 ```
 
+### Move lists between scopes
+
+Move lists to a scope, or release them from their scope by passing `null`.
+Lists are chosen by id or path name, or with `fromScope`, every list a scope
+manages. Like `syncSchema`, the result is returned whether or not the move was
+applied, so check `applied` and `blockedBy`.
+
+```ts
+function moveLists(
+  selection: { lists: string[] } | { fromScope: string },
+  scope: string | null,
+  options?: {
+    // Return the plan without changing anything
+    dryRun?: boolean;
+  }
+): Promise<MoveListsResult>;
+```
+
+Example:
+
+```ts
+const result: MoveListsResult = await jsonpad.moveLists(
+  { fromScope: 'recipe-app' },
+  'cookbook-app'
+);
+
+console.log(`Moved ${result.summary.move} lists`);
+```
+
 ## Types
 
 The SDK includes TypeScript types for the JSONPad API. You can import them like so:
@@ -2739,6 +2812,10 @@ import JSONPad, {
   PaginatedRequest,
   PaginatedResponse,
   SearchResult,
+  SyncSchemaDocument,
+  SyncSchemaResult,
+  SyncSchemaExport,
+  MoveListsResult,
   Token,
   TokenPermission,
   TokenSelf,
@@ -3434,14 +3511,17 @@ type SyncSchemaResult = {
   syncId: string;
   dryRun: boolean;
   applied: boolean;
+  prune: boolean;
   scope: string | null;
   summary: {
     create: number;
     update: number;
     adopt: number;
+    delete: number;
     noChange: number;
     error: number;
     builds: number;
+    destructive: number;
   };
   changes: SyncSchemaChange[];
 
@@ -3455,13 +3535,20 @@ type SyncSchemaChange = {
   index?: string;
   listId?: string;
   indexId?: string;
-  action: 'create' | 'update' | 'adopt' | 'no-change' | 'error';
+  action: 'create' | 'update' | 'adopt' | 'delete' | 'no-change' | 'error';
   fields?: Record<string, { from: any; to: any }>;
   build?: {
     reason: 'created' | 'pointerChanged';
     items: number;
     requiresConfirmation: boolean;
     buildStatus?: IndexBuildStatus;
+  };
+
+  // For a resource a prune deletes. items and indexes are for lists only
+  delete?: {
+    items?: number;
+    indexes?: number;
+    destructive: boolean;
   };
   warnings?: string[];
   errors?: { name: string; code: number; message: string }[];
@@ -3474,5 +3561,45 @@ type SyncSchemaChange = {
 type SyncSchemaExport = {
   document: SyncSchemaDocument & { $schema: string };
   warnings: string[];
+};
+```
+
+### `MoveListsResult`
+
+```ts
+type MoveListsResult = {
+  moveId: string;
+  dryRun: boolean;
+  applied: boolean;
+
+  // The scope the lists were moved to, or null if they were released
+  scope: string | null;
+  summary: {
+    move: number;
+    assign: number;
+    release: number;
+    noChange: number;
+    error: number;
+  };
+  changes: MoveListsChange[];
+  warnings: string[];
+
+  // Why the move wasn't applied (or, in a dry run, wouldn't be)
+  blockedBy: { name: string; code: number; message: string } | null;
+};
+
+type MoveListsChange = {
+  // The list's path name (or id), or the requested list if it wasn't found
+  list: string;
+  listId?: string;
+  action: 'move' | 'assign' | 'release' | 'no-change' | 'error';
+  from?: string | null;
+  to?: string | null;
+
+  // How many of the list's managed indexes move (or are released) with it
+  indexes?: number;
+  fields?: Record<string, { from: any; to: any }>;
+  warnings?: string[];
+  errors?: { name: string; code: number; message: string }[];
 };
 ```

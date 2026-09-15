@@ -65,7 +65,7 @@ export type SyncSchemaDocument = {
 };
 
 export type SyncSchemaAction =
-  'create' | 'update' | 'adopt' | 'no-change' | 'error';
+  'create' | 'update' | 'adopt' | 'delete' | 'no-change' | 'error';
 
 export type SyncSchemaError = {
   name: string;
@@ -95,6 +95,27 @@ export type SyncSchemaChange = {
     requiresConfirmation: boolean;
     buildStatus?: IndexBuildStatus;
   };
+
+  /**
+   * For a resource a prune deletes
+   */
+  delete?: {
+    /**
+     * How many items are deleted with a list
+     */
+    items?: number;
+
+    /**
+     * How many indexes are deleted with a list
+     */
+    indexes?: number;
+
+    /**
+     * Whether the delete needs allowDestructive: a list that has items, or a
+     * guard index
+     */
+    destructive: boolean;
+  };
   warnings?: string[];
   errors?: SyncSchemaError[];
 };
@@ -103,14 +124,17 @@ export type SyncSchemaResult = {
   syncId: string;
   dryRun: boolean;
   applied: boolean;
+  prune: boolean;
   scope: string | null;
   summary: {
     create: number;
     update: number;
     adopt: number;
+    delete: number;
     noChange: number;
     error: number;
     builds: number;
+    destructive: number;
   };
   changes: SyncSchemaChange[];
 
@@ -131,6 +155,17 @@ export type SyncSchemaOptions = {
    * the index unusable until the rebuild finishes
    */
   allowRebuild?: boolean;
+
+  /**
+   * Also delete the lists and indexes the document's scope manages that it no
+   * longer declares. Needs a scope
+   */
+  prune?: boolean;
+
+  /**
+   * Allow a prune to delete lists that have items, and guard indexes
+   */
+  allowDestructive?: boolean;
 };
 
 export type ExportSchemaOptions = {
@@ -154,4 +189,66 @@ export type ExportSchemaOptions = {
 export type SyncSchemaExport = {
   document: SyncSchemaDocument & { $schema: string };
   warnings: string[];
+};
+
+/**
+ * The lists to move: either lists by id or path name, or every list a scope
+ * manages
+ */
+export type MoveListsSelection = { lists: string[] } | { fromScope: string };
+
+export type MoveListsOptions = {
+  /**
+   * Return the plan without changing anything
+   */
+  dryRun?: boolean;
+};
+
+export type MoveListsAction =
+  'move' | 'assign' | 'release' | 'no-change' | 'error';
+
+export type MoveListsChange = {
+  /**
+   * The list's path name (or id, if it has none), or the requested list if it
+   * wasn't found
+   */
+  list: string;
+  listId?: string;
+  action: MoveListsAction;
+  from?: string | null;
+  to?: string | null;
+
+  /**
+   * How many of the list's indexes the scope manages, which move (or are
+   * released) with the list
+   */
+  indexes?: number;
+  fields?: Record<string, { from: any; to: any }>;
+  warnings?: string[];
+  errors?: SyncSchemaError[];
+};
+
+export type MoveListsResult = {
+  moveId: string;
+  dryRun: boolean;
+  applied: boolean;
+
+  /**
+   * The scope the lists were moved to, or null if they were released
+   */
+  scope: string | null;
+  summary: {
+    move: number;
+    assign: number;
+    release: number;
+    noChange: number;
+    error: number;
+  };
+  changes: MoveListsChange[];
+  warnings: string[];
+
+  /**
+   * Why the move wasn't applied (or, in a dry run, wouldn't be)
+   */
+  blockedBy: SyncSchemaError | null;
 };

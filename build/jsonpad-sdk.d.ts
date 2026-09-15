@@ -245,7 +245,7 @@ type SyncSchemaDocument = {
      */
     lists: Record<string, SyncSchemaListDefinition>;
 };
-type SyncSchemaAction = 'create' | 'update' | 'adopt' | 'no-change' | 'error';
+type SyncSchemaAction = 'create' | 'update' | 'adopt' | 'delete' | 'no-change' | 'error';
 type SyncSchemaError = {
     name: string;
     code: number;
@@ -274,6 +274,24 @@ type SyncSchemaChange = {
         requiresConfirmation: boolean;
         buildStatus?: IndexBuildStatus;
     };
+    /**
+     * For a resource a prune deletes
+     */
+    delete?: {
+        /**
+         * How many items are deleted with a list
+         */
+        items?: number;
+        /**
+         * How many indexes are deleted with a list
+         */
+        indexes?: number;
+        /**
+         * Whether the delete needs allowDestructive: a list that has items, or a
+         * guard index
+         */
+        destructive: boolean;
+    };
     warnings?: string[];
     errors?: SyncSchemaError[];
 };
@@ -281,14 +299,17 @@ type SyncSchemaResult = {
     syncId: string;
     dryRun: boolean;
     applied: boolean;
+    prune: boolean;
     scope: string | null;
     summary: {
         create: number;
         update: number;
         adopt: number;
+        delete: number;
         noChange: number;
         error: number;
         builds: number;
+        destructive: number;
     };
     changes: SyncSchemaChange[];
     /**
@@ -306,6 +327,15 @@ type SyncSchemaOptions = {
      * the index unusable until the rebuild finishes
      */
     allowRebuild?: boolean;
+    /**
+     * Also delete the lists and indexes the document's scope manages that it no
+     * longer declares. Needs a scope
+     */
+    prune?: boolean;
+    /**
+     * Allow a prune to delete lists that have items, and guard indexes
+     */
+    allowDestructive?: boolean;
 };
 type ExportSchemaOptions = {
     /**
@@ -327,6 +357,66 @@ type SyncSchemaExport = {
         $schema: string;
     };
     warnings: string[];
+};
+/**
+ * The lists to move: either lists by id or path name, or every list a scope
+ * manages
+ */
+type MoveListsSelection = {
+    lists: string[];
+} | {
+    fromScope: string;
+};
+type MoveListsOptions = {
+    /**
+     * Return the plan without changing anything
+     */
+    dryRun?: boolean;
+};
+type MoveListsAction = 'move' | 'assign' | 'release' | 'no-change' | 'error';
+type MoveListsChange = {
+    /**
+     * The list's path name (or id, if it has none), or the requested list if it
+     * wasn't found
+     */
+    list: string;
+    listId?: string;
+    action: MoveListsAction;
+    from?: string | null;
+    to?: string | null;
+    /**
+     * How many of the list's indexes the scope manages, which move (or are
+     * released) with the list
+     */
+    indexes?: number;
+    fields?: Record<string, {
+        from: any;
+        to: any;
+    }>;
+    warnings?: string[];
+    errors?: SyncSchemaError[];
+};
+type MoveListsResult = {
+    moveId: string;
+    dryRun: boolean;
+    applied: boolean;
+    /**
+     * The scope the lists were moved to, or null if they were released
+     */
+    scope: string | null;
+    summary: {
+        move: number;
+        assign: number;
+        release: number;
+        noChange: number;
+        error: number;
+    };
+    changes: MoveListsChange[];
+    warnings: string[];
+    /**
+     * Why the move wasn't applied (or, in a dry run, wouldn't be)
+     */
+    blockedBy: SyncSchemaError | null;
 };
 
 type TokenPermission = {
@@ -1030,19 +1120,37 @@ declare class JSONPad extends EventTarget {
      */
     fetchSelfToken(): Promise<TokenSelf>;
     /**
-     * Create and update lists and indexes to match a schema sync document
+     * Create and update lists and indexes to match a schema sync document, and
+     * with `prune`, delete the ones its scope manages that it no longer declares
      *
      * The result is returned whether or not the sync was applied: a sync is
-     * refused as a whole if any change has an error, or if a change would
-     * rebuild an index in a list with items and `allowRebuild` isn't set. Check
-     * `applied` and `blockedBy`. Other errors (e.g. an invalid document) throw a
-     * JSONPadError
+     * refused as a whole if any change has an error, if a change would rebuild
+     * an index in a list with items and `allowRebuild` isn't set, or if a prune
+     * would delete a list that has items (or a guard index) and
+     * `allowDestructive` isn't set. Check `applied` and `blockedBy`. Other
+     * errors (e.g. an invalid document) throw a JSONPadError
      */
     syncSchema(document: SyncSchemaDocument, options?: SyncSchemaOptions): Promise<SyncSchemaResult>;
+    /**
+     * Move lists to a schema sync scope, or release them from their scope by
+     * passing null
+     *
+     * Lists can be chosen by id or path name, or every list a scope manages can
+     * be moved at once (e.g. to rename the scope). A list no scope manages is
+     * assigned to the scope. The scope's tag moves with each list. Like a sync,
+     * a move is all or nothing, and the result is returned whether or not it
+     * was applied: check `applied` and `blockedBy`
+     */
+    moveLists(selection: MoveListsSelection, scope: string | null, options?: MoveListsOptions): Promise<MoveListsResult>;
+    /**
+     * Send a schema sync request whose response is a plan. A refused plan is
+     * returned rather than thrown, because it describes why it was refused
+     */
+    private requestPlan;
     /**
      * Describe existing lists and their indexes as a schema sync document
      */
     exportSchema(options?: ExportSchemaOptions): Promise<SyncSchemaExport>;
 }
 
-export { Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
+export { Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
