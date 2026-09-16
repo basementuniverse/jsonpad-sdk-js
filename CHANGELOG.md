@@ -8,7 +8,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
-## [Unreleased]
+## [1.14.0] - 2026-09-16
 
 ### Deprecated
 
