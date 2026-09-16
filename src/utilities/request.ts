@@ -15,6 +15,7 @@ export default async function request<T = any>(
 ): Promise<{ data: T | null; meta: ResponseMeta }> {
   // Array values become repeated parameters, e.g. { tagged: ['a', 'b'] } becomes
   // ?tagged=a&tagged=b
+  // Dates are sent as ISO 8601 strings, which is the format the API validates
   const parametersString = parameters
     ? new URLSearchParams(
         Object.entries(parameters)
@@ -22,7 +23,7 @@ export default async function request<T = any>(
           .flatMap(([key, value]) =>
             (Array.isArray(value) ? value : [value]).map(v => [
               key,
-              v.toString(),
+              v instanceof Date ? v.toISOString() : v.toString(),
             ])
           )
       )

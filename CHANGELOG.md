@@ -8,6 +8,15 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [1.14.1] - 2026-09-16
+
+### Fixed
+
+- `startAt` and `endAt` in `fetchListEvents()`, `fetchItemEvents()`,
+  `fetchIndexEvents()` and `fetchIdentityEvents()` are now sent as ISO 8601
+  strings. Previously they were sent in `Date.toString()` format, which the API
+  rejected with a validation error.
+
 ## [1.14.0] - 2026-09-16
 
 ### Deprecated
