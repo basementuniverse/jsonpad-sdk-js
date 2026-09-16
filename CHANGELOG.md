@@ -8,6 +8,20 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [2.0.0] - 2026-09-16
+
+The only change is the removed command line tool. The SDK's API is unchanged.
+
+### Removed
+
+- The `jsonpad` command line tool, deprecated in 1.14.0. It's in
+  `@basementuniverse/jsonpad-cli`, with the same commands, options, output and
+  exit codes, so replace `npx @basementuniverse/jsonpad-sdk` with
+  `npx @basementuniverse/jsonpad-cli`, e.g.
+  `npx @basementuniverse/jsonpad-cli sync-schema --dry-run`. If you installed
+  this package globally for the command, uninstall it before installing the
+  new package, since both used to provide `jsonpad`.
+
 ## [1.14.1] - 2026-09-16
 
 ### Fixed

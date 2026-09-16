@@ -321,61 +321,14 @@ change a sync makes.
 
 ## Command line tool
 
-> **Deprecated:** the `jsonpad` command has moved to its own package,
-> [`@basementuniverse/jsonpad-cli`](https://www.npmjs.com/package/@basementuniverse/jsonpad-cli),
-> which has the same commands, options, output and exit codes. It will be
-> removed from this package in 2.0.0. Replace
-> `npx @basementuniverse/jsonpad-sdk` with `npx @basementuniverse/jsonpad-cli`.
-> If you installed this package globally for the command, run
-> `npm uninstall -g @basementuniverse/jsonpad-sdk` before installing the new
-> one, since both provide `jsonpad`.
+The `jsonpad` command line tool is in its own package,
+[`@basementuniverse/jsonpad-cli`](https://www.npmjs.com/package/@basementuniverse/jsonpad-cli).
+See [Command line tool](https://jsonpad.io/docs/command-line-tool) in the docs.
 
-The package includes a `jsonpad` command for syncing schema documents, e.g. in
-a deploy script or CI. It needs Node.js 18.3 or later, and reads the API token
-from the `JSONPAD_TOKEN` environment variable.
-
-```bash
-# Without installing anything
-npx @basementuniverse/jsonpad-sdk sync-schema --dry-run
-
-# Or, with the SDK installed in your project
-npx jsonpad sync-schema --dry-run
-```
-
-```
-jsonpad sync-schema [file]            Sync a document (default: jsonpad-schema.json)
-  --dry-run                           Show what would change, without changing it
-  --allow-rebuild                     Allow changes that rebuild an index in a list with items
-  --prune                             Also delete what the scope manages but the document no longer declares
-  --allow-destructive                 Allow a prune to delete lists that have items, and guard indexes
-  --wait                              Wait for index builds to finish
-  --timeout <seconds>                 How long --wait waits for each index (default 600)
-  --show-unchanged                    Also list resources that don't change
-  --json                              Print the API's response as JSON
-
-jsonpad export-schema                 Write a document for existing lists
-  --scope <scope>                     Only lists managed by this scope
-  --tagged <tags>                     Only lists with one of these comma-separated tags
-  --lists <path names>                Only these comma-separated lists
-  --out <file>                        Write to a file instead of stdout
-
-jsonpad move-lists [list...]          Move lists to a scope, or release them from their scope
-  --to <scope>                        The scope to move the lists to
-  --release                           Release the lists from their scope instead
-  --from-scope <scope>                Move every list this scope manages (e.g. to rename it)
-  --dry-run                           Show what would change, without changing it
-  --json                              Print the API's response as JSON
-
-jsonpad rebuild-index <list> <index>  Rebuild an index whose last build failed
-  --wait                              Wait for the build to finish
-```
-
-`JSONPAD_API_URL` sets the API's URL, and `NO_COLOR` turns off coloured output.
-
-Exit codes: `0` success, `1` error (including a sync refused because a change has
-errors), `2` a sync that needs `--allow-rebuild`, `3` an index build that failed
-or didn't finish while waiting, `4` a sync that needs `--allow-destructive`. A
-dry run exits the same way the real sync would.
+Versions 1.12 to 1.14 of this package included the schema commands. If you
+installed this package globally for the command, run
+`npm uninstall -g @basementuniverse/jsonpad-sdk` before
+`npm install -g @basementuniverse/jsonpad-cli`, or npm refuses to install it.
 
 ## Contents
 
