@@ -6,6 +6,9 @@
  *
  * Plain CommonJS on top of the built SDK, so it needs nothing but Node 18.3 or
  * later (for fetch and util.parseArgs). Run `jsonpad --help` for usage
+ *
+ * Deprecated: this command has moved to @basementuniverse/jsonpad-cli, and
+ * will be removed in 2.0.0. It gets no new commands
  */
 
 const fs = require('fs');
@@ -132,6 +135,28 @@ function describeApiError(error) {
 // -----------------------------------------------------------------------------
 // Setup
 // -----------------------------------------------------------------------------
+
+/**
+ * Tell people running this by hand that the command has moved. The notice goes
+ * to stderr, so output and exit codes don't change, and it's left out of CI
+ * logs, where nobody would act on it
+ */
+function printDeprecationNotice() {
+  const ci = (process.env.CI || '').toLowerCase();
+
+  if (
+    (ci && ci !== 'false' && ci !== '0') ||
+    process.env.JSONPAD_NO_DEPRECATION
+  ) {
+    return;
+  }
+
+  console.error(
+    yellow(
+      'The jsonpad command has moved to @basementuniverse/jsonpad-cli, and will be removed from @basementuniverse/jsonpad-sdk in 2.0.0. Run npx @basementuniverse/jsonpad-cli, or npm install -g @basementuniverse/jsonpad-cli'
+    )
+  );
+}
 
 function createClient() {
   const token = process.env.JSONPAD_TOKEN;
@@ -638,6 +663,8 @@ const COMMANDS = {
 
 async function main(argv) {
   const [commandName, ...rest] = argv;
+
+  printDeprecationNotice();
 
   if (!commandName || ['-h', '--help', 'help'].includes(commandName)) {
     process.stdout.write(HELP);

@@ -321,6 +321,15 @@ change a sync makes.
 
 ## Command line tool
 
+> **Deprecated:** the `jsonpad` command has moved to its own package,
+> [`@basementuniverse/jsonpad-cli`](https://www.npmjs.com/package/@basementuniverse/jsonpad-cli),
+> which has the same commands, options, output and exit codes. It will be
+> removed from this package in 2.0.0. Replace
+> `npx @basementuniverse/jsonpad-sdk` with `npx @basementuniverse/jsonpad-cli`.
+> If you installed this package globally for the command, run
+> `npm uninstall -g @basementuniverse/jsonpad-sdk` before installing the new
+> one, since both provide `jsonpad`.
+
 The package includes a `jsonpad` command for syncing schema documents, e.g. in
 a deploy script or CI. It needs Node.js 18.3 or later, and reads the API token
 from the `JSONPAD_TOKEN` environment variable.

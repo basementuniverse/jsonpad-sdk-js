@@ -10,6 +10,30 @@ on 2026-09-14 from git history and are deliberately brief.
 
 ## [Unreleased]
 
+### Deprecated
+
+- The `jsonpad` command line tool, which has moved to its own package,
+  `@basementuniverse/jsonpad-cli`, with the same commands, options, output and
+  exit codes. It will be removed in 2.0.0. Running it prints a notice to
+  stderr, unless `CI` or `JSONPAD_NO_DEPRECATION` is set.
+
+## [1.13.0] - 2026-09-16
+
+### Added
+
+- `prune` and `allowDestructive` options for `syncSchema()`, which delete the
+  lists and indexes a scope manages that its document no longer declares. The
+  `'delete'` action, `delete` details on changes, and `prune`,
+  `summary.delete` and `summary.destructive` in `SyncSchemaResult`.
+- `moveLists()`, which moves lists between schema sync scopes, assigns lists to
+  a scope or releases them, with the `MoveListsSelection`, `MoveListsOptions`
+  and `MoveListsResult` types.
+- `--prune` and `--allow-destructive` for `jsonpad sync-schema` (exit code `4`
+  when a sync needs `--allow-destructive`), and a `jsonpad move-lists`
+  command.
+
+## [1.12.0] - 2026-09-14
+
 ### Added
 
 - `rebuildIndex()`, which starts a new build for an index whose last build
@@ -22,16 +46,6 @@ on 2026-09-14 from git history and are deliberately brief.
   `sync-schema`, `export-schema` and `rebuild-index` commands.
 - An optional fourth constructor argument, `{ apiUrl }`, for pointing the SDK
   at a different API.
-- `prune` and `allowDestructive` options for `syncSchema()`, which delete the
-  lists and indexes a scope manages that its document no longer declares. The
-  `'delete'` action, `delete` details on changes, and `prune`,
-  `summary.delete` and `summary.destructive` in `SyncSchemaResult`.
-- `moveLists()`, which moves lists between schema sync scopes, assigns lists to
-  a scope or releases them, with the `MoveListsSelection`, `MoveListsOptions`
-  and `MoveListsResult` types.
-- `--prune` and `--allow-destructive` for `jsonpad sync-schema` (exit code `4`
-  when a sync needs `--allow-destructive`), and a `jsonpad move-lists`
-  command.
 
 ### Changed
 
