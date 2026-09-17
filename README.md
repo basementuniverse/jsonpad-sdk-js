@@ -292,6 +292,54 @@ Email verification works the same way, with
 See the [password reset guide](https://jsonpad.io/docs/identity-password-reset)
 for the whole flow, including verifying webhook signatures.
 
+## Signing in with Google or GitHub
+
+Identities can sign in with an account they already have, instead of (or as
+well as) a password. Set the provider up for the identity group in the
+[dashboard](https://jsonpad.io/identity-groups) first: it needs an OAuth app of
+your own at Google or GitHub, and the pages your app returns to.
+
+These methods run in a browser: they keep a verifier in `sessionStorage`
+between starting and finishing a sign-in, so only the browser that started one
+can finish it.
+
+```ts
+// On your sign-in page: a button for each provider you've set up
+const providers = await jsonpad.fetchIdentityOAuthProviders('players');
+
+// ...then, when someone clicks one (this goes to Google)
+await jsonpad.startIdentityOAuth('google', {
+  redirectUrl: 'https://example.com/auth/callback',
+});
+```
+
+```ts
+// On https://example.com/auth/callback
+const { identity, token, created } = await jsonpad.completeIdentityOAuth();
+
+// The SDK is now logged in as this identity, as after loginIdentity()
+if (created) {
+  showWelcomePage(identity);
+}
+```
+
+A logged-in identity can link more accounts, and unlink them again (its last
+way of signing in can't be removed):
+
+```ts
+await jsonpad.linkSelfIdentityProvider('github', {
+  redirectUrl: 'https://example.com/settings/accounts',
+});
+
+const accounts = await jsonpad.fetchSelfIdentityProviders();
+
+await jsonpad.unlinkSelfIdentityProvider('github');
+```
+
+See the [OAuth guide](https://jsonpad.io/docs/identity-oauth) for the whole
+flow, and the [Google](https://jsonpad.io/docs/identity-oauth-google) and
+[GitHub](https://jsonpad.io/docs/identity-oauth-github) setup guides.
+
 ## Schema sync
 
 Describe your lists and their indexes in a document (usually a
@@ -449,6 +497,12 @@ installed this package globally for the command, run
 - [Reset a password](#reset-a-password)
 - [Request an email verification token](#request-an-email-verification-token)
 - [Verify an email address](#verify-an-email-address)
+- [Fetch sign-in providers](#fetch-sign-in-providers)
+- [Start signing in with a provider](#start-signing-in-with-a-provider)
+- [Finish signing in with a provider](#finish-signing-in-with-a-provider)
+- [Link a provider account](#link-a-provider-account)
+- [Fetch linked provider accounts](#fetch-linked-provider-accounts)
+- [Unlink a provider account](#unlink-a-provider-account)
 
 ### Tokens
 
@@ -2854,6 +2908,155 @@ const identity: Identity = await jsonpad.confirmIdentityEmailVerification({
 The token only works while the identity's email address is the one it was sent
 to.
 
+### Fetch sign-in providers
+
+Fetch the providers enabled for an identity group, so your app can show a
+button for each one.
+
+```ts
+function fetchIdentityOAuthProviders(
+  group?: string
+): Promise<IdentityOAuthProvider[]>;
+```
+
+Example:
+
+```ts
+const providers = await jsonpad.fetchIdentityOAuthProviders('players');
+
+// [{ provider: 'google', name: 'Google' }]
+```
+
+### Start signing in with a provider
+
+Send the browser to the provider's sign-in page. `redirectUrl` must be one of
+the identity group's redirect URLs, and is where the person comes back to.
+
+```ts
+function startIdentityOAuth(
+  provider: string,
+  options: {
+    redirectUrl: string;
+
+    // The identity group, if it isn't the instance's
+    group?: string;
+
+    // Go to the provider straight away (default true)
+    navigate?: boolean;
+
+    // Somewhere other than sessionStorage to keep the client verifier
+    storage?: IdentityOAuthStorage;
+  }
+): Promise<{ url: string; expiresAt: Date }>;
+```
+
+Example:
+
+```ts
+await jsonpad.startIdentityOAuth('google', {
+  redirectUrl: 'https://example.com/auth/callback',
+});
+```
+
+### Finish signing in with a provider
+
+Call this on the page the provider sent the person back to. It reads the
+parameters from the page's URL, logs in the identity linked to the provider
+account (creating one if there isn't one yet), and removes the parameters from
+the address bar.
+
+```ts
+function completeIdentityOAuth(
+  options?: {
+    // The return page's URL (default: the current page's)
+    url?: string;
+
+    // Tidy the parameters out of the address bar (default true)
+    cleanUrl?: boolean;
+
+    storage?: IdentityOAuthStorage;
+  }
+): Promise<{
+  identity: Identity;
+  token: string | undefined;
+  created: boolean;
+}>;
+```
+
+Example:
+
+```ts
+const { identity, token, created } = await jsonpad.completeIdentityOAuth();
+```
+
+It throws a `JSONPadError` if the sign-in failed: code `20018` when the person
+cancelled at the provider, `20017` when the sign-in has expired or was already
+finished, and `20010` when another identity in the group already has the
+account's email address (they should log in and link it themselves).
+
+After linking an account, rather than signing in, `token` is `undefined` and
+`created` is `false`.
+
+### Link a provider account
+
+Start linking another provider account to the current identity. The return page
+finishes it with `completeIdentityOAuth()`.
+
+```ts
+function linkSelfIdentityProvider(
+  provider: string,
+  options: {
+    redirectUrl: string;
+    navigate?: boolean;
+    storage?: IdentityOAuthStorage;
+  },
+  identity?: IdentityParameter
+): Promise<{ url: string; expiresAt: Date }>;
+```
+
+Example:
+
+```ts
+await jsonpad.linkSelfIdentityProvider('github', {
+  redirectUrl: 'https://example.com/settings/accounts',
+});
+```
+
+### Fetch linked provider accounts
+
+Fetch the accounts the current identity can sign in with.
+
+```ts
+function fetchSelfIdentityProviders(
+  identity?: IdentityParameter
+): Promise<IdentityProviderAccount[]>;
+```
+
+Example:
+
+```ts
+const accounts = await jsonpad.fetchSelfIdentityProviders();
+```
+
+### Unlink a provider account
+
+Stop the current identity signing in with a provider account. An identity's
+last way of signing in can't be removed: it throws a `JSONPadError` with code
+`20022` if it has no password and no other linked account.
+
+```ts
+function unlinkSelfIdentityProvider(
+  provider: string,
+  identity?: IdentityParameter
+): Promise<void>;
+```
+
+Example:
+
+```ts
+await jsonpad.unlinkSelfIdentityProvider('github');
+```
+
 ### Fetch the current token
 
 Fetch the token making the request, the limits of its subscription plan, and the account's usage for the current month. Any active token can do this, whatever its permissions.
@@ -3292,6 +3495,41 @@ type Identity = {
   group: string;
   lastLoginAt: Date | null;
   activated: boolean;
+
+  // Only when the account owner fetches an identity, or an identity fetches
+  // itself
+  email?: string | null;
+  emailVerified?: boolean;
+  hasPassword?: boolean;
+  providers?: IdentityProviderAccount[];
+
+  // Only from fetchSelfIdentity()
+  sessionCount?: number;
+};
+```
+
+### `IdentityProviderAccount`
+
+```ts
+type IdentityProviderAccount = {
+  provider: string;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  createdAt: Date;
+  lastLoginAt: Date | null;
+};
+```
+
+### `IdentityOAuthProvider`
+
+```ts
+type IdentityOAuthProvider = {
+  // e.g. 'google'
+  provider: string;
+
+  // e.g. 'Google', for a button
+  name: string;
 };
 ```
 
@@ -3306,7 +3544,14 @@ export type IdentityEventType =
   | 'identity-logged-in'
   | 'identity-logged-out'
   | 'identity-updated-self'
-  | 'identity-deleted-self';
+  | 'identity-deleted-self'
+  | 'identity-sessions-revoked'
+  | 'identity-password-reset-requested'
+  | 'identity-password-reset'
+  | 'identity-email-verification-requested'
+  | 'identity-email-verified'
+  | 'identity-provider-linked'
+  | 'identity-provider-unlinked';
 ```
 
 ### `IdentityOrderBy`

@@ -3,8 +3,11 @@ import { IndexBuildError, JSONPadError } from './errors';
 import { ResponseEvent } from './events';
 import { Event, Identity, Index, Item, List, Token } from './models';
 import {
+  CompleteIdentityOAuthOptions,
   EventOrderBy,
   IdentityEventType,
+  IdentityOAuthProvider,
+  IdentityProviderAccount,
   IdentityOrderBy,
   IdentityParameter,
   IdentityStats,
@@ -26,6 +29,7 @@ import {
   PaginatedResponse,
   ResponseMeta,
   SearchResult,
+  StartIdentityOAuthOptions,
   ExportSchemaOptions,
   MoveListsOptions,
   MoveListsResult,
@@ -38,6 +42,12 @@ import {
   Usage,
 } from './types';
 import exclude from './utilities/exclude';
+import {
+  cleanCurrentUrl,
+  createClientVerifier,
+  getStorage,
+  storageKey,
+} from './utilities/oauth';
 import sendRequest from './utilities/request';
 
 export type JSONPadOptions = {
@@ -1398,6 +1408,230 @@ export class JSONPad extends EventTarget {
         data
       ))!
     );
+  }
+
+  /**
+   * Fetch the sign-in providers enabled for an identity group, e.g. to show a
+   * "Sign in with…" button for each one
+   */
+  public async fetchIdentityOAuthProviders(
+    group?: string
+  ): Promise<IdentityOAuthProvider[]> {
+    return (await this.request<IdentityOAuthProvider[]>(
+      this.token,
+      'GET',
+      '/identities/oauth/providers',
+      { group: group ?? this.identityGroup }
+    ))!;
+  }
+
+  /**
+   * Start signing in with a provider (browser only)
+   *
+   * This goes to the provider's sign-in page. Afterwards, the person comes
+   * back to `redirectUrl`, which should call `completeIdentityOAuth()`
+   *
+   * If nobody is linked to the provider account yet, completing the sign-in
+   * creates a new identity (if the token can register identities)
+   */
+  public async startIdentityOAuth(
+    provider: string,
+    options: StartIdentityOAuthOptions & { group?: string }
+  ): Promise<{ url: string; expiresAt: Date }> {
+    return this.startOAuth(
+      `/identities/oauth/${encodeURIComponent(provider)}/start`,
+      { group: options.group ?? this.identityGroup },
+      options,
+      { ignore: true, token: '' }
+    );
+  }
+
+  /**
+   * Finish signing in with a provider (or linking a provider account), on the
+   * page the provider sent the person back to (browser only)
+   *
+   * After signing in, the identity is logged in, as with `loginIdentity()`.
+   * `created` is true if a new identity was made for the provider account.
+   * After linking an account, `token` is undefined
+   */
+  public async completeIdentityOAuth(
+    options: CompleteIdentityOAuthOptions = {}
+  ): Promise<{
+    identity: Identity;
+    token: string | undefined;
+    created: boolean;
+  }> {
+    const url = options.url ?? (globalThis as any).location?.href;
+
+    if (!url) {
+      throw new Error(
+        "completeIdentityOAuth() needs the return page's URL; pass a url option"
+      );
+    }
+
+    const params = new URL(url).searchParams;
+    const state = params.get('state');
+
+    if (!state) {
+      throw new Error(
+        "This page's URL doesn't have a sign-in to complete (there's no state parameter)"
+      );
+    }
+
+    const storage = getStorage(options.storage);
+    const clientVerifier = storage.getItem(storageKey(state));
+
+    if (!clientVerifier) {
+      throw new Error(
+        'This sign-in was started in another browser or tab, or has already been completed; start signing in again'
+      );
+    }
+
+    let response: Record<string, any>;
+    try {
+      response = (await this.request<Record<string, any>>(
+        this.token,
+        'POST',
+        '/identities/oauth/complete',
+        undefined,
+        {
+          state,
+          code: params.get('code') ?? undefined,
+          error: params.get('error') ?? undefined,
+          errorDescription: params.get('error_description') ?? undefined,
+          clientVerifier,
+        }
+      ))!;
+    } finally {
+      // A sign-in can only be completed once, so the verifier is no use now
+      storage.removeItem(storageKey(state));
+
+      if (options.cleanUrl ?? true) {
+        cleanCurrentUrl(url);
+      }
+    }
+
+    if (response.token) {
+      this.identityGroup = response.group || undefined;
+      this.identityToken = response.token;
+    }
+
+    return {
+      identity: new Identity(
+        exclude(response as any, 'token', 'created') as ConstructorParameters<
+          typeof Identity
+        >[0]
+      ),
+      token: response.token || undefined,
+      created: !!response.created,
+    };
+  }
+
+  /**
+   * Start linking a provider account to the current identity (browser only),
+   * so the identity can sign in with it
+   *
+   * The return page completes it with `completeIdentityOAuth()`
+   */
+  public async linkSelfIdentityProvider(
+    provider: string,
+    options: StartIdentityOAuthOptions,
+    identity?: IdentityParameter
+  ): Promise<{ url: string; expiresAt: Date }> {
+    return this.startOAuth(
+      `/identities/self/providers/${encodeURIComponent(provider)}/start`,
+      {},
+      options,
+      identity
+    );
+  }
+
+  /**
+   * Fetch the provider accounts linked to the current identity
+   */
+  public async fetchSelfIdentityProviders(
+    identity?: IdentityParameter
+  ): Promise<IdentityProviderAccount[]> {
+    const accounts = (await this.request<Record<string, any>[]>(
+      this.token,
+      'GET',
+      '/identities/self/providers',
+      undefined,
+      undefined,
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    ))!;
+
+    return accounts.map(account => ({
+      ...(account as IdentityProviderAccount),
+      createdAt: new Date(account.createdAt),
+      lastLoginAt: account.lastLoginAt ? new Date(account.lastLoginAt) : null,
+    }));
+  }
+
+  /**
+   * Unlink a provider account from the current identity
+   *
+   * An identity's last way of signing in can't be removed: set a password
+   * first, or link another account
+   */
+  public async unlinkSelfIdentityProvider(
+    provider: string,
+    identity?: IdentityParameter
+  ) {
+    await this.request(
+      this.token,
+      'DELETE',
+      `/identities/self/providers/${encodeURIComponent(provider)}`,
+      undefined,
+      undefined,
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    );
+  }
+
+  /**
+   * Start a sign-in or link; signing in passes `{ ignore: true }`, because
+   * an identity that's already logged in can't sign in again
+   */
+  private async startOAuth(
+    path: string,
+    body: Record<string, any>,
+    options: StartIdentityOAuthOptions,
+    identity?: IdentityParameter
+  ): Promise<{ url: string; expiresAt: Date }> {
+    const storage = getStorage(options.storage);
+    const [clientVerifier, clientVerifierHash] = await createClientVerifier();
+
+    const response = (await this.request<{ url: string; expiresAt: string }>(
+      this.token,
+      'POST',
+      path,
+      undefined,
+      { ...body, redirectUrl: options.redirectUrl, clientVerifierHash },
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    ))!;
+
+    const state = new URL(response.url).searchParams.get('state');
+
+    if (state) {
+      storage.setItem(storageKey(state), clientVerifier);
+    }
+
+    if (options.navigate ?? true) {
+      const location = (globalThis as any).location as Location | undefined;
+
+      if (!location) {
+        throw new Error(
+          "There's no page to navigate from; pass navigate: false and go to the returned url yourself"
+        );
+      }
+
+      location.assign(response.url);
+    }
+
+    return { url: response.url, expiresAt: new Date(response.expiresAt) };
   }
 
   private async requestIdentityToken(

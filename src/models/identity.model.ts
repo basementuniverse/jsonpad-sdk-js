@@ -1,3 +1,4 @@
+import { IdentityProviderAccount } from '../types/identity-oauth';
 import { User } from './user.model';
 
 export class Identity {
@@ -21,6 +22,13 @@ export class Identity {
    * identity fetches itself
    */
   public sessionCount?: number;
+
+  /**
+   * The provider accounts linked to the identity; included when the account
+   * owner fetches an identity, when an identity fetches itself, and after
+   * linking an account
+   */
+  public providers?: IdentityProviderAccount[];
   public tags!: string[];
   public group!: string;
   public lastLoginAt: Date | null = null;
@@ -44,6 +52,11 @@ export class Identity {
       updatedAt: new Date(data.updatedAt),
       user: data.user ? new User(data.user) : undefined,
       lastLoginAt: data.lastLoginAt ? new Date(data.lastLoginAt) : null,
+      providers: data.providers?.map(account => ({
+        ...account,
+        createdAt: new Date(account.createdAt),
+        lastLoginAt: account.lastLoginAt ? new Date(account.lastLoginAt) : null,
+      })),
     });
   }
 }

@@ -28,6 +28,15 @@ and email verification.
 - `reset-password` and `verify-email` token permission actions, and the new
   identity event types.
 - `IdentityTokenRequest` and `IdentityTokenRequestResult` types.
+- Signing in with Google or GitHub: `fetchIdentityOAuthProviders()`,
+  `startIdentityOAuth()` and `completeIdentityOAuth()`.
+- Linking provider accounts to an identity: `linkSelfIdentityProvider()`,
+  `fetchSelfIdentityProviders()` and `unlinkSelfIdentityProvider()`.
+- `Identity` has `providers` (when the account owner or the identity itself
+  fetches it), and the `identity-provider-linked` and
+  `identity-provider-unlinked` event types.
+- `IdentityOAuthProvider`, `IdentityProviderAccount`, `IdentityOAuthStorage`,
+  `StartIdentityOAuthOptions` and `CompleteIdentityOAuthOptions` types.
 
 ### Changed
 

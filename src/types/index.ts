@@ -1,6 +1,7 @@
 export * from './event-order-by';
 export * from './event-stream';
 export * from './identity-event-type';
+export * from './identity-oauth';
 export * from './identity-order-by';
 export * from './identity-parameter';
 export * from './identity-stats';

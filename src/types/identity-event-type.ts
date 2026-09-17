@@ -11,4 +11,6 @@ export type IdentityEventType =
   | 'identity-password-reset-requested'
   | 'identity-password-reset'
   | 'identity-email-verification-requested'
-  | 'identity-email-verified';
+  | 'identity-email-verified'
+  | 'identity-provider-linked'
+  | 'identity-provider-unlinked';
