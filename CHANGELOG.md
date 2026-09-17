@@ -8,6 +8,34 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [Unreleased]
+
+Needs the JSONPad API release with identity groups, sessions, password reset
+and email verification.
+
+### Added
+
+- `requestIdentityPasswordReset()` and `confirmIdentityPasswordReset()`.
+- `requestIdentityEmailVerification()` and `confirmIdentityEmailVerification()`.
+- `loginIdentity()` accepts `email` instead of `name`.
+- `logoutIdentity()` takes an `{ all: true }` option to log out everywhere.
+- `email` in `createIdentity()`, `updateIdentity()`, `registerIdentity()` and
+  `updateSelfIdentity()`, and `currentPassword` in `updateSelfIdentity()`.
+- `Identity` has `email`, `emailVerified` and `hasPassword` (when the account
+  owner or the identity itself fetches it) and `sessionCount` (from
+  `fetchSelfIdentity()`).
+- `group` in `updateIdentity()`'s data type (the API already accepted it).
+- `reset-password` and `verify-email` token permission actions, and the new
+  identity event types.
+- `IdentityTokenRequest` and `IdentityTokenRequestResult` types.
+
+### Changed
+
+- The API now requires `currentPassword` to change an identity's own password
+  or email address with `updateSelfIdentity()`, unless the identity has no
+  password.
+- New identity passwords must be 8 to 72 bytes long.
+
 ## [2.0.0] - 2026-09-16
 
 The only change is the removed command line tool. The SDK's API is unchanged.

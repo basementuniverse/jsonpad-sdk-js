@@ -238,6 +238,60 @@ await jsonpad.fetchLists({ tagged: ['recipe-app', 'production'] });
 
 Identities can't set their own tags when registering or updating themselves.
 
+## Password reset and email verification
+
+JSONPad never sends email. Instead it issues single-use tokens, and your app
+sends them to the identity (e.g. as a link to your "reset password" page) with
+its own branding.
+
+How a token reaches your app depends on the identity group's **token delivery**
+setting, which you choose in the dashboard:
+
+- **Returned to the caller** (the default): `requestIdentityPasswordReset()`
+  returns the token. Anyone who can call it with your API token can take over
+  any identity in the group, so **only call it from a server**, with a token
+  that never leaves it.
+- **Sent to a webhook**: the token is POSTed to your webhook (signed with the
+  group's secret), and the request only returns `{ delivery: 'webhook' }`. This
+  is safe to call from a browser.
+
+```ts
+// On your server: request a reset token and email it
+const result = await jsonpad.requestIdentityPasswordReset({
+  group: 'players',
+  email: 'alice@example.com',
+});
+
+if (result.delivery !== 'webhook' && result.resetToken) {
+  await sendEmail(
+    result.identity!.email!,
+    `https://example.com/reset-password?token=${result.resetToken}`
+  );
+}
+
+// Always show the same message, whether or not an identity was found
+```
+
+```ts
+// On your reset password page
+await jsonpad.confirmIdentityPasswordReset({
+  resetToken: new URLSearchParams(location.search).get('token')!,
+  password: newPassword,
+});
+
+// The identity is logged out everywhere, and can now log in again
+await jsonpad.loginIdentity({
+  group: 'players',
+  email: 'alice@example.com',
+  password: newPassword,
+});
+```
+
+Email verification works the same way, with
+`requestIdentityEmailVerification()` and `confirmIdentityEmailVerification()`.
+See the [password reset guide](https://jsonpad.io/docs/identity-password-reset)
+for the whole flow, including verifying webhook signatures.
+
 ## Schema sync
 
 Describe your lists and their indexes in a document (usually a
@@ -391,6 +445,10 @@ installed this package globally for the command, run
 - [Fetch the currently logged in identity](#fetch-the-currently-logged-in-identity)
 - [Update the currently logged in identity](#update-the-currently-logged-in-identity)
 - [Delete the currently logged in identity](#delete-the-currently-logged-in-identity)
+- [Request a password reset token](#request-a-password-reset-token)
+- [Reset a password](#reset-a-password)
+- [Request an email verification token](#request-an-email-verification-token)
+- [Verify an email address](#verify-an-email-address)
 
 ### Tokens
 
@@ -2196,7 +2254,11 @@ function createIdentity(
     // The identity group
     group?: string;
 
-    // The identity password
+    // The identity's email address (required if the group requires one)
+    // Email addresses are unique within a group, ignoring case
+    email?: string | null;
+
+    // The identity password (at least 8 characters)
     password: string;
   }
 ): Promise<Identity>;
@@ -2208,7 +2270,8 @@ Example:
 const identity: Identity = await jsonpad.createIdentity({
   name: 'Alice',
   group: 'my-group',
-  password: 'secret',
+  email: 'alice@example.com',
+  password: 'correct-horse',
 });
 ```
 
@@ -2412,7 +2475,12 @@ function updateIdentity(
     // The identity group
     group?: string;
 
-    // The identity password
+    // The identity's email address; set this to null to remove it
+    // A new email address isn't verified
+    email?: string | null;
+
+    // The identity password (at least 8 characters)
+    // Setting a new password logs the identity out everywhere
     password?: string;
   }
 ): Promise<Identity>;
@@ -2425,7 +2493,7 @@ const identity: Identity = await jsonpad.updateIdentity(
   '59b9f5be-06ec-4e5d-8b4c-ab48b0e9bdc0',
   {
     name: 'Updated Alice',
-    password: 'secret',
+    password: 'correct-horse',
   }
 );
 ```
@@ -2459,7 +2527,10 @@ function registerIdentity(
     // Unlike the name, this isn't used to log in
     displayName?: string | null;
 
-    // The identity password
+    // The identity's email address (required if the group requires one)
+    email?: string | null;
+
+    // The identity password (at least 8 characters)
     password: string;
   },
   identity?: {
@@ -2481,7 +2552,8 @@ Example:
 const identity: Identity = await jsonpad.registerIdentity({
   group: 'my-group',
   name: 'Alice',
-  password: 'secret',
+  email: 'alice@example.com',
+  password: 'correct-horse',
 });
 ```
 
@@ -2493,8 +2565,11 @@ function loginIdentity(
     // The identity group
     group?: string;
 
-    // The identity name
-    name: string;
+    // The identity name, or...
+    name?: string;
+
+    // ...the identity's email address (ignoring case)
+    email?: string;
 
     // The identity password
     password: string;
@@ -2520,10 +2595,13 @@ let token: string;
 
 [identity, token] = await jsonpad.loginIdentity({
   group: 'my-group',
-  name: 'Alice',
-  password: 'secret',
+  email: 'alice@example.com',
+  password: 'correct-horse',
 });
 ```
+
+Pass either `name` or `email`, not both. An identity can be logged in on several
+devices at once.
 
 The identity group and token will be cached in the SDK instance and used for subsequent requests.
 
@@ -2540,6 +2618,10 @@ function logoutIdentity(
 
     // Set the identity token, or override cached identity token
     token?: string;
+  },
+  options?: {
+    // Log the identity out on every device, not just this session
+    all?: boolean;
   }
 ): Promise<void>;
 ```
@@ -2548,6 +2630,9 @@ Example:
 
 ```ts
 await jsonpad.logoutIdentity();
+
+// Log out everywhere
+await jsonpad.logoutIdentity(undefined, { all: true });
 ```
 
 ### Fetch the currently logged in identity
@@ -2585,8 +2670,16 @@ function updateSelfIdentity(
     // Set this to null to remove the display name
     displayName?: string | null;
 
-    // The identity password
+    // The identity's email address; a new email address isn't verified
+    email?: string | null;
+
+    // The identity password (at least 8 characters)
+    // Other sessions for the identity end; this one stays logged in
     password?: string;
+
+    // The current password, required to change the password or email address
+    // (unless the identity doesn't have a password)
+    currentPassword?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -2605,8 +2698,8 @@ Example:
 
 ```ts
 const identity: Identity = await jsonpad.updateSelfIdentity({
-  name: 'Updated Alice',
-  password: 'secret',
+  password: 'new-correct-horse',
+  currentPassword: 'correct-horse',
 });
 ```
 
@@ -2632,6 +2725,134 @@ Example:
 ```ts
 await jsonpad.deleteSelfIdentity();
 ```
+
+### Request a password reset token
+
+Only call this from a server, unless the identity group delivers tokens to a
+webhook. See [Password reset and email verification](#password-reset-and-email-verification).
+
+```ts
+function requestIdentityPasswordReset(
+  data: {
+    // The identity group
+    group?: string;
+
+    // Exactly one of these
+    identityId?: string;
+    name?: string;
+    email?: string;
+  }
+): Promise<
+  | {
+      // The token, or null if no activated, unlocked identity matched
+      resetToken: string | null;
+      expiresAt: Date | null;
+      identity: Identity | null;
+    }
+  | {
+      // The group delivers tokens to a webhook; nothing else is returned
+      delivery: 'webhook';
+    }
+>;
+```
+
+Example:
+
+```ts
+const result = await jsonpad.requestIdentityPasswordReset({
+  group: 'my-group',
+  email: 'alice@example.com',
+});
+```
+
+A token can be requested for each identity once a minute. Requesting a new token
+replaces the previous one.
+
+### Reset a password
+
+```ts
+function confirmIdentityPasswordReset(
+  data: {
+    // The token from requestIdentityPasswordReset()
+    resetToken: string;
+
+    // The new password (at least 8 characters)
+    password: string;
+  }
+): Promise<Identity>;
+```
+
+Example:
+
+```ts
+const identity: Identity = await jsonpad.confirmIdentityPasswordReset({
+  resetToken: 'nCG0QLTdHAqefwfylmdn0F0guVP0UbGP9oWpHq2lTvI',
+  password: 'new-correct-horse',
+});
+```
+
+The token can only be used once. The identity is logged out everywhere, and its
+email address is marked as verified (the reset link reached it).
+
+### Request an email verification token
+
+Only call this from a server, unless the identity group delivers tokens to a
+webhook.
+
+```ts
+function requestIdentityEmailVerification(
+  data: {
+    // The identity group
+    group?: string;
+
+    // Exactly one of these
+    identityId?: string;
+    name?: string;
+    email?: string;
+  }
+): Promise<
+  | {
+      // Null if no identity matched, or it has no email or is already verified
+      verificationToken: string | null;
+      expiresAt: Date | null;
+      identity: Identity | null;
+    }
+  | {
+      delivery: 'webhook';
+    }
+>;
+```
+
+Example:
+
+```ts
+const result = await jsonpad.requestIdentityEmailVerification({
+  group: 'my-group',
+  name: 'Alice',
+});
+```
+
+### Verify an email address
+
+```ts
+function confirmIdentityEmailVerification(
+  data: {
+    // The token from requestIdentityEmailVerification()
+    verificationToken: string;
+  }
+): Promise<Identity>;
+```
+
+Example:
+
+```ts
+const identity: Identity = await jsonpad.confirmIdentityEmailVerification({
+  verificationToken: 'nYu0QBv7IroYymu9diaTw28i0TZ2vssgsdVVb8e1ZpM',
+});
+```
+
+The token only works while the identity's email address is the one it was sent
+to.
 
 ### Fetch the current token
 

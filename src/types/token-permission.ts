@@ -9,6 +9,8 @@ export type TokenPermission = {
     | 'restore'
     | 'register'
     | 'authenticate'
+    | 'reset-password'
+    | 'verify-email'
     | 'create-with-identity'
     | 'view-with-identity'
     | 'update-with-identity'

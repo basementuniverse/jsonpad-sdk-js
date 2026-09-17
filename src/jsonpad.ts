@@ -8,6 +8,8 @@ import {
   IdentityOrderBy,
   IdentityParameter,
   IdentityStats,
+  IdentityTokenRequest,
+  IdentityTokenRequestResult,
   IndexEventType,
   IndexOrderBy,
   IndexStats,
@@ -1039,7 +1041,9 @@ export class JSONPad extends EventTarget {
     group?: string;
     name: string;
     displayName?: string | null;
+    email?: string | null;
     password: string;
+    tags?: string[];
   }): Promise<Identity> {
     return new Identity(
       (await this.request<ConstructorParameters<typeof Identity>[0]>(
@@ -1157,9 +1161,12 @@ export class JSONPad extends EventTarget {
   public async updateIdentity(
     identityId: string,
     data: {
+      group?: string;
       name?: string;
       displayName?: string | null;
+      email?: string | null;
       password?: string;
+      tags?: string[];
     }
   ): Promise<Identity> {
     return new Identity(
@@ -1188,6 +1195,7 @@ export class JSONPad extends EventTarget {
       group?: string;
       name: string;
       displayName?: string | null;
+      email?: string | null;
       password: string;
     },
     identity?: IdentityParameter
@@ -1206,14 +1214,13 @@ export class JSONPad extends EventTarget {
   }
 
   /**
-   * Login using an identity
+   * Login using an identity, identified by its name or its email address
    */
   public async loginIdentity(
     data: {
       group?: string;
-      name: string;
       password: string;
-    },
+    } & ({ name: string; email?: never } | { email: string; name?: never }),
     identity?: IdentityParameter
   ): Promise<[Identity, string | undefined]> {
     const response = (await this.request<
@@ -1243,14 +1250,20 @@ export class JSONPad extends EventTarget {
 
   /**
    * Logout using an identity
+   *
+   * By default only the current session ends; set `all` to log the identity
+   * out on every device
    */
-  public async logoutIdentity(identity?: IdentityParameter) {
+  public async logoutIdentity(
+    identity?: IdentityParameter,
+    options?: { all?: boolean }
+  ) {
     await this.request(
       this.token,
       'POST',
       '/identities/logout',
       undefined,
-      undefined,
+      options?.all ? { all: true } : undefined,
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
@@ -1285,7 +1298,12 @@ export class JSONPad extends EventTarget {
     data: {
       name?: string;
       displayName?: string | null;
+      email?: string | null;
       password?: string;
+
+      // Required to change the password or email address, unless the
+      // identity doesn't have a password
+      currentPassword?: string;
     },
     identity?: IdentityParameter
   ): Promise<Identity> {
@@ -1315,6 +1333,94 @@ export class JSONPad extends EventTarget {
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
       identity?.ignore ? undefined : identity?.token ?? this.identityToken
     );
+  }
+
+  /**
+   * Request a password reset token for an identity
+   *
+   * If the identity group returns tokens to the caller (the default), the
+   * token is in the response: only call this from a server, with a token that
+   * never leaves it, then send the reset link to the identity yourself. If the
+   * group delivers tokens to a webhook, the token is sent there instead, and
+   * this is safe to call from a browser
+   */
+  public async requestIdentityPasswordReset(
+    data: IdentityTokenRequest
+  ): Promise<IdentityTokenRequestResult<'resetToken', Identity>> {
+    return this.requestIdentityToken('/identities/password-reset', data);
+  }
+
+  /**
+   * Set a new password for an identity, using a password reset token
+   *
+   * This logs the identity out everywhere; it then needs to log in with its
+   * new password
+   */
+  public async confirmIdentityPasswordReset(data: {
+    resetToken: string;
+    password: string;
+  }): Promise<Identity> {
+    return new Identity(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'POST',
+        '/identities/password-reset/confirm',
+        undefined,
+        data
+      ))!
+    );
+  }
+
+  /**
+   * Request an email verification token for an identity
+   *
+   * As with password reset tokens, only call this from a server unless the
+   * identity group delivers tokens to a webhook
+   */
+  public async requestIdentityEmailVerification(
+    data: IdentityTokenRequest
+  ): Promise<IdentityTokenRequestResult<'verificationToken', Identity>> {
+    return this.requestIdentityToken('/identities/email-verification', data);
+  }
+
+  /**
+   * Verify an identity's email address, using an email verification token
+   */
+  public async confirmIdentityEmailVerification(data: {
+    verificationToken: string;
+  }): Promise<Identity> {
+    return new Identity(
+      (await this.request<ConstructorParameters<typeof Identity>[0]>(
+        this.token,
+        'POST',
+        '/identities/email-verification/confirm',
+        undefined,
+        data
+      ))!
+    );
+  }
+
+  private async requestIdentityToken(
+    path: string,
+    data: IdentityTokenRequest
+  ): Promise<any> {
+    const response = (await this.request<Record<string, any>>(
+      this.token,
+      'POST',
+      path,
+      undefined,
+      data
+    ))!;
+
+    if (response.delivery === 'webhook') {
+      return response;
+    }
+
+    return {
+      ...response,
+      expiresAt: response.expiresAt ? new Date(response.expiresAt) : null,
+      identity: response.identity ? new Identity(response.identity) : null,
+    };
   }
 
   // #endregion

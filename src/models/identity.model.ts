@@ -7,6 +7,20 @@ export class Identity {
   public user?: User;
   public name!: string;
   public displayName: string | null = null;
+
+  /**
+   * Only included when the account owner fetches an identity, or when an
+   * identity fetches itself
+   */
+  public email?: string | null;
+  public emailVerified?: boolean;
+  public hasPassword?: boolean;
+
+  /**
+   * The number of devices the identity is logged in on; only included when an
+   * identity fetches itself
+   */
+  public sessionCount?: number;
   public tags!: string[];
   public group!: string;
   public lastLoginAt: Date | null = null;
