@@ -37,6 +37,8 @@ and email verification.
   `identity-provider-unlinked` event types.
 - `IdentityOAuthProvider`, `IdentityProviderAccount`, `IdentityOAuthStorage`,
   `StartIdentityOAuthOptions` and `CompleteIdentityOAuthOptions` types.
+- `completeIdentityOAuth()` passes on Apple's `user` parameter, which carries
+  the person's name the first time they sign in with Apple.
 
 ### Changed
 

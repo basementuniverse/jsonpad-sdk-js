@@ -1499,6 +1499,9 @@ export class JSONPad extends EventTarget {
           code: params.get('code') ?? undefined,
           error: params.get('error') ?? undefined,
           errorDescription: params.get('error_description') ?? undefined,
+
+          // Apple sends the person's name, but only the first time
+          user: params.get('user') ?? undefined,
           clientVerifier,
         }
       ))!;
