@@ -8,7 +8,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
-## [Unreleased]
+## [2.1.0] - 2026-09-18
 
 Needs the JSONPad API release with identity groups, sessions, password reset
 and email verification.
