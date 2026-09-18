@@ -2,7 +2,75 @@ type EventOrderBy = 'createdAt' | 'type';
 
 type EventStream = 'list' | 'item' | 'index';
 
-type IdentityEventType = 'identity-created' | 'identity-updated' | 'identity-deleted' | 'identity-registered' | 'identity-logged-in' | 'identity-logged-out' | 'identity-updated-self' | 'identity-deleted-self';
+type IdentityEventType = 'identity-created' | 'identity-updated' | 'identity-deleted' | 'identity-registered' | 'identity-logged-in' | 'identity-logged-out' | 'identity-updated-self' | 'identity-deleted-self' | 'identity-sessions-revoked' | 'identity-password-reset-requested' | 'identity-password-reset' | 'identity-email-verification-requested' | 'identity-email-verified' | 'identity-provider-linked' | 'identity-provider-unlinked';
+
+/**
+ * A sign-in provider enabled for an identity group
+ */
+type IdentityOAuthProvider = {
+    /**
+     * The provider's id, e.g. 'google'
+     */
+    provider: string;
+    /**
+     * The provider's name, e.g. 'Google', for showing on a button
+     */
+    name: string;
+};
+/**
+ * A provider account linked to an identity
+ */
+type IdentityProviderAccount = {
+    provider: string;
+    email: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+    createdAt: Date;
+    lastLoginAt: Date | null;
+};
+/**
+ * Where the SDK keeps the client verifier between starting and completing a
+ * sign-in. Defaults to `sessionStorage`
+ */
+type IdentityOAuthStorage = {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+};
+type StartIdentityOAuthOptions = {
+    /**
+     * The page the person comes back to after signing in, which calls
+     * `completeIdentityOAuth()`. It must be one of the identity group's
+     * redirect URLs
+     */
+    redirectUrl: string;
+    /**
+     * Go to the provider straight away (the default). Set this to false to get
+     * the provider's URL and go there yourself
+     */
+    navigate?: boolean;
+    /**
+     * Somewhere other than `sessionStorage` to keep the client verifier
+     */
+    storage?: IdentityOAuthStorage;
+};
+type CompleteIdentityOAuthOptions = {
+    /**
+     * The return page's URL, including the parameters the provider added.
+     * Defaults to the current page's URL
+     */
+    url?: string;
+    /**
+     * Remove the sign-in parameters from the address bar afterwards (the
+     * default), so they don't stay in the browser's history
+     */
+    cleanUrl?: boolean;
+    /**
+     * The storage passed to `startIdentityOAuth()`, if it wasn't
+     * `sessionStorage`
+     */
+    storage?: IdentityOAuthStorage;
+};
 
 type IdentityOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'displayName' | 'group' | 'activated';
 
@@ -28,6 +96,41 @@ type IdentityStats = {
     events: Stats<{
         types: Metric<IdentityEventType>;
     }>;
+};
+
+/**
+ * Choose the identity to request a password reset or email verification token
+ * for: exactly one of identityId, name or email, in the (optional) group
+ */
+type IdentityTokenRequest = {
+    group?: string;
+} & ({
+    identityId: string;
+    name?: never;
+    email?: never;
+} | {
+    name: string;
+    identityId?: never;
+    email?: never;
+} | {
+    email: string;
+    identityId?: never;
+    name?: never;
+});
+/**
+ * The response to a password reset or email verification token request
+ *
+ * If the identity group delivers tokens to a webhook, the token is sent there
+ * instead and the response only says so
+ */
+type IdentityTokenRequestResult<TokenKey extends 'resetToken' | 'verificationToken', IdentityType> = ({
+    delivery?: undefined;
+    expiresAt: Date | null;
+    identity: IdentityType | null;
+} & {
+    [key in TokenKey]: string | null;
+}) | {
+    delivery: 'webhook';
 };
 
 type IndexBuildStatus = 'ready' | 'building' | 'failed';
@@ -421,7 +524,7 @@ type MoveListsResult = {
 
 type TokenPermission = {
     mode: 'allow' | 'block';
-    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity' | 'sync-schema';
+    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'reset-password' | 'verify-email' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity' | 'sync-schema';
     resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
     listIds?: string[];
     itemIds?: string[];
@@ -537,6 +640,24 @@ declare class Identity {
     user?: User;
     name: string;
     displayName: string | null;
+    /**
+     * Only included when the account owner fetches an identity, or when an
+     * identity fetches itself
+     */
+    email?: string | null;
+    emailVerified?: boolean;
+    hasPassword?: boolean;
+    /**
+     * The number of devices the identity is logged in on; only included when an
+     * identity fetches itself
+     */
+    sessionCount?: number;
+    /**
+     * The provider accounts linked to the identity; included when the account
+     * owner fetches an identity, when an identity fetches itself, and after
+     * linking an account
+     */
+    providers?: IdentityProviderAccount[];
     tags: string[];
     group: string;
     lastLoginAt: Date | null;
@@ -1027,7 +1148,9 @@ declare class JSONPad extends EventTarget {
         group?: string;
         name: string;
         displayName?: string | null;
+        email?: string | null;
         password: string;
+        tags?: string[];
     }): Promise<Identity>;
     /**
      * Fetch a page of identities
@@ -1069,9 +1192,12 @@ declare class JSONPad extends EventTarget {
      * Update an identity
      */
     updateIdentity(identityId: string, data: {
+        group?: string;
         name?: string;
         displayName?: string | null;
+        email?: string | null;
         password?: string;
+        tags?: string[];
     }): Promise<Identity>;
     /**
      * Delete an identity
@@ -1084,20 +1210,31 @@ declare class JSONPad extends EventTarget {
         group?: string;
         name: string;
         displayName?: string | null;
+        email?: string | null;
         password: string;
     }, identity?: IdentityParameter): Promise<Identity>;
     /**
-     * Login using an identity
+     * Login using an identity, identified by its name or its email address
      */
     loginIdentity(data: {
         group?: string;
-        name: string;
         password: string;
-    }, identity?: IdentityParameter): Promise<[Identity, string | undefined]>;
+    } & ({
+        name: string;
+        email?: never;
+    } | {
+        email: string;
+        name?: never;
+    }), identity?: IdentityParameter): Promise<[Identity, string | undefined]>;
     /**
      * Logout using an identity
+     *
+     * By default only the current session ends; set `all` to log the identity
+     * out on every device
      */
-    logoutIdentity(identity?: IdentityParameter): Promise<void>;
+    logoutIdentity(identity?: IdentityParameter, options?: {
+        all?: boolean;
+    }): Promise<void>;
     /**
      * Fetch the current identity
      */
@@ -1108,12 +1245,107 @@ declare class JSONPad extends EventTarget {
     updateSelfIdentity(data: {
         name?: string;
         displayName?: string | null;
+        email?: string | null;
         password?: string;
+        currentPassword?: string;
     }, identity?: IdentityParameter): Promise<Identity>;
     /**
      * Delete the current identity
      */
     deleteSelfIdentity(identity?: IdentityParameter): Promise<void>;
+    /**
+     * Request a password reset token for an identity
+     *
+     * If the identity group returns tokens to the caller (the default), the
+     * token is in the response: only call this from a server, with a token that
+     * never leaves it, then send the reset link to the identity yourself. If the
+     * group delivers tokens to a webhook, the token is sent there instead, and
+     * this is safe to call from a browser
+     */
+    requestIdentityPasswordReset(data: IdentityTokenRequest): Promise<IdentityTokenRequestResult<'resetToken', Identity>>;
+    /**
+     * Set a new password for an identity, using a password reset token
+     *
+     * This logs the identity out everywhere; it then needs to log in with its
+     * new password
+     */
+    confirmIdentityPasswordReset(data: {
+        resetToken: string;
+        password: string;
+    }): Promise<Identity>;
+    /**
+     * Request an email verification token for an identity
+     *
+     * As with password reset tokens, only call this from a server unless the
+     * identity group delivers tokens to a webhook
+     */
+    requestIdentityEmailVerification(data: IdentityTokenRequest): Promise<IdentityTokenRequestResult<'verificationToken', Identity>>;
+    /**
+     * Verify an identity's email address, using an email verification token
+     */
+    confirmIdentityEmailVerification(data: {
+        verificationToken: string;
+    }): Promise<Identity>;
+    /**
+     * Fetch the sign-in providers enabled for an identity group, e.g. to show a
+     * "Sign in with…" button for each one
+     */
+    fetchIdentityOAuthProviders(group?: string): Promise<IdentityOAuthProvider[]>;
+    /**
+     * Start signing in with a provider (browser only)
+     *
+     * This goes to the provider's sign-in page. Afterwards, the person comes
+     * back to `redirectUrl`, which should call `completeIdentityOAuth()`
+     *
+     * If nobody is linked to the provider account yet, completing the sign-in
+     * creates a new identity (if the token can register identities)
+     */
+    startIdentityOAuth(provider: string, options: StartIdentityOAuthOptions & {
+        group?: string;
+    }): Promise<{
+        url: string;
+        expiresAt: Date;
+    }>;
+    /**
+     * Finish signing in with a provider (or linking a provider account), on the
+     * page the provider sent the person back to (browser only)
+     *
+     * After signing in, the identity is logged in, as with `loginIdentity()`.
+     * `created` is true if a new identity was made for the provider account.
+     * After linking an account, `token` is undefined
+     */
+    completeIdentityOAuth(options?: CompleteIdentityOAuthOptions): Promise<{
+        identity: Identity;
+        token: string | undefined;
+        created: boolean;
+    }>;
+    /**
+     * Start linking a provider account to the current identity (browser only),
+     * so the identity can sign in with it
+     *
+     * The return page completes it with `completeIdentityOAuth()`
+     */
+    linkSelfIdentityProvider(provider: string, options: StartIdentityOAuthOptions, identity?: IdentityParameter): Promise<{
+        url: string;
+        expiresAt: Date;
+    }>;
+    /**
+     * Fetch the provider accounts linked to the current identity
+     */
+    fetchSelfIdentityProviders(identity?: IdentityParameter): Promise<IdentityProviderAccount[]>;
+    /**
+     * Unlink a provider account from the current identity
+     *
+     * An identity's last way of signing in can't be removed: set a password
+     * first, or link another account
+     */
+    unlinkSelfIdentityProvider(provider: string, identity?: IdentityParameter): Promise<void>;
+    /**
+     * Start a sign-in or link; signing in passes `{ ignore: true }`, because
+     * an identity that's already logged in can't sign in again
+     */
+    private startOAuth;
+    private requestIdentityToken;
     /**
      * Fetch the current token, the limits of the plan it belongs to, and the
      * account's usage so far this month
@@ -1153,4 +1385,4 @@ declare class JSONPad extends EventTarget {
     exportSchema(options?: ExportSchemaOptions): Promise<SyncSchemaExport>;
 }
 
-export { Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOrderBy, type IdentityParameter, type IdentityStats, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
+export { type CompleteIdentityOAuthOptions, Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOAuthProvider, type IdentityOAuthStorage, type IdentityOrderBy, type IdentityParameter, type IdentityProviderAccount, type IdentityStats, type IdentityTokenRequest, type IdentityTokenRequestResult, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type StartIdentityOAuthOptions, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
