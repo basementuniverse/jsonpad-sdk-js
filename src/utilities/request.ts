@@ -1,5 +1,5 @@
 import * as constants from '../constants';
-import { JSONPadError } from '../errors';
+import { errorFromResponse } from '../errors';
 import { ResponseMeta } from '../types/response-meta';
 import parseResponseMeta from './parse-response-meta';
 
@@ -11,7 +11,8 @@ export default async function request<T = any>(
   body?: any,
   identityGroup?: string,
   identityToken?: string,
-  apiUrl: string = constants.API_URL
+  apiUrl: string = constants.API_URL,
+  extraHeaders?: Record<string, string>
 ): Promise<{ data: T | null; meta: ResponseMeta }> {
   // Array values become repeated parameters, e.g. { tagged: ['a', 'b'] } becomes
   // ?tagged=a&tagged=b
@@ -41,6 +42,12 @@ export default async function request<T = any>(
     headers[constants.IDENTITY_TOKEN_HEADER] = identityToken;
   }
 
+  for (const [name, value] of Object.entries(extraHeaders ?? {})) {
+    if (value !== undefined) {
+      headers[name] = value;
+    }
+  }
+
   const response = await fetch(`${apiUrl}${path}?${parametersString}`, {
     method,
     headers,
@@ -50,7 +57,7 @@ export default async function request<T = any>(
   const meta = parseResponseMeta(response);
 
   if (!response.ok) {
-    throw new JSONPadError(response.status, await response.text(), meta);
+    throw errorFromResponse(response.status, await response.text(), meta);
   }
 
   if (response.status === 204) {

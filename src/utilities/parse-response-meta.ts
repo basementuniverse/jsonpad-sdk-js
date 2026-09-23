@@ -31,6 +31,7 @@ export default function parseResponseMeta(response: Response): ResponseMeta {
   return {
     status: response.status,
     requestId: headers.get(constants.REQUEST_ID_HEADER),
+    etag: headers.get(constants.ETAG_HEADER),
     rateLimit:
       rateLimitTotal !== null && rateLimitRemaining !== null
         ? {

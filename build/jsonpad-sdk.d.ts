@@ -258,6 +258,12 @@ type ResponseMeta = {
      * On a 429 response, how many seconds to wait before retrying
      */
     retryAfter: number | null;
+    /**
+     * The item's ETag, on a response that carries one (fetching or writing an
+     * item). Send it back as `ifMatch` to write only if the item hasn't
+     * changed since
+     */
+    etag?: string | null;
 };
 
 type SearchResult = {
@@ -322,6 +328,24 @@ type SyncSchemaListDefinition = {
     description?: string;
     tags?: string[];
     schema?: Record<string, any> | null;
+    /**
+     * The list's write rules: the text, an array of lines (JSON has no
+     * multi-line strings), or null for no rules
+     */
+    rules?: string | string[] | null;
+    /**
+     * The tests the write rules have to pass
+     */
+    rulesTests?: Record<string, any> | null;
+    /**
+     * A file holding the rules, relative to the document. Resolved by the
+     * JSONPad CLI: the API refuses a document that still has it
+     */
+    rulesFile?: string;
+    /**
+     * A file holding the rule tests, resolved by the CLI like rulesFile
+     */
+    rulesTestsFile?: string;
     readonly?: boolean;
     realtime?: boolean;
     protected?: boolean;
@@ -353,6 +377,11 @@ type SyncSchemaError = {
     name: string;
     code: number;
     message: string;
+    /**
+     * Structured information about the error, e.g. the diagnostics for write
+     * rules that don't compile, or the rule tests that failed
+     */
+    details?: Record<string, any>;
 };
 type SyncSchemaChange = {
     resourceType: 'list' | 'index';
@@ -593,6 +622,199 @@ type TokenSelf = {
     usage: Usage;
 };
 
+/**
+ * A problem with some write rules, from the checker
+ */
+type WriteRuleDiagnostic = {
+    severity: 'error' | 'warning';
+    /**
+     * A stable identifier for the kind of problem, e.g. "unknown-name"
+     */
+    code: string;
+    message: string;
+    /**
+     * Where in the rule text the problem is. Lines and columns start at 1
+     */
+    span: {
+        start: number;
+        end: number;
+        line: number;
+        column: number;
+        endLine: number;
+        endColumn: number;
+    };
+};
+/**
+ * A candidate write to check against a list's rules, without making it
+ */
+type TestWriteRulesRequest = {
+    /**
+     * The rules to test. Defaults to the list's stored rules
+     */
+    rules?: string | null;
+    /**
+     * What the write does. A restore is checked with the update rules
+     */
+    action: 'create' | 'update' | 'delete' | 'restore';
+    /**
+     * An item to take the old data and metadata from
+     */
+    itemId?: string;
+    /**
+     * The item's data before the write. Defaults to the item's, when itemId is
+     * given
+     */
+    old?: any;
+    /**
+     * The item's data after the write
+     */
+    new?: any;
+    /**
+     * A JSON Patch applied to the old data to make the new data
+     */
+    patch?: {
+        op: string;
+        path: string;
+        from?: string;
+        value?: any;
+    }[];
+    /**
+     * A JSON merge patch applied to the old data to make the new data
+     */
+    merge?: any;
+    /**
+     * An identity to make the write as
+     */
+    identityId?: string;
+    /**
+     * An identity to make the write as, without it having to exist
+     */
+    identity?: Record<string, any> | null;
+    /**
+     * The token to make the write as. Defaults to the calling token
+     */
+    token?: {
+        id: string;
+        tags?: string[];
+    };
+    /**
+     * The time of the write, which the rules see as `now`. Defaults to now
+     */
+    now?: Date | string;
+    /**
+     * The JSON pointer, for writes to part of an item's data
+     */
+    pointer?: string | null;
+    /**
+     * Run $jsonpad-var substitution on the new data first (default true)
+     */
+    substitute?: boolean;
+    /**
+     * Check the list's JSON schema between the two stages (default true)
+     */
+    schema?: boolean;
+};
+/**
+ * One rule statement, as it was evaluated
+ */
+type WriteRuleStatementResult = {
+    index: number;
+    kind: 'allow' | 'require';
+    label: string | null;
+    line: number;
+    operations: ('create' | 'update' | 'delete')[];
+    /**
+     * True only if the statement evaluated to true
+     */
+    result: boolean;
+    /**
+     * Why the statement isn't true, if evaluating it raised an error
+     */
+    error: string | null;
+    errorLine: number | null;
+    /**
+     * Each expression that was evaluated, with its value. Values are only
+     * included for the account owner
+     */
+    trace?: {
+        id: number;
+        span: WriteRuleDiagnostic['span'];
+        value?: any;
+        hidden?: true;
+        error?: string;
+    }[];
+    traceTruncated?: boolean;
+};
+/**
+ * What a list's rules would do with a candidate write
+ */
+type TestWriteRulesResult = {
+    allowed: boolean;
+    /**
+     * Which stage decided: the allow statements, the list's JSON schema, the
+     * require statements, or none of them
+     */
+    stage: 'allow' | 'schema' | 'require' | 'ok';
+    /**
+     * The status a real write would get
+     */
+    status: number;
+    code: string | null;
+    reason: string | null;
+    message: string | null;
+    /**
+     * The statement that refused the write, or the one that allowed it
+     */
+    statement: {
+        index: number;
+        kind: 'allow' | 'require';
+        label: string | null;
+        line: number;
+    } | null;
+    operation: 'create' | 'update' | 'delete';
+    action: TestWriteRulesRequest['action'];
+    /**
+     * The rules engine's version, and the version of the rules language
+     */
+    engineVersion: string;
+    languageVersion: number;
+    /**
+     * The checker's warnings about the rules that were tested
+     */
+    diagnostics: WriteRuleDiagnostic[];
+    budget: {
+        used: number;
+        limit: number;
+    };
+    statements: WriteRuleStatementResult[];
+    /**
+     * The data the rules saw, after variable substitution. Only for the
+     * account owner
+     */
+    new?: any;
+};
+/**
+ * A write a list's rules refused
+ */
+type WriteRuleDenial = {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    itemId: string | null;
+    identityId: string | null;
+    tokenId: string | null;
+    operation: 'create' | 'update' | 'delete';
+    /**
+     * "allow" when no rule allowed the write (403), "require" when it failed a
+     * check (400)
+     */
+    stage: 'allow' | 'require';
+    statementIndex: number | null;
+    statementLabel: string | null;
+    statementLine: number | null;
+    reason: string | null;
+};
+
 declare class User {
     id: string;
     createdAt: Date;
@@ -744,6 +966,16 @@ declare class List {
     tags: string[];
     pathName: string;
     schema: any;
+    /**
+     * The list's write rules, checked on every item write made with an API
+     * token. Only returned to the account owner and to tokens that can update
+     * the list
+     */
+    rules?: string | null;
+    /**
+     * The tests the write rules have to pass before they're saved
+     */
+    rulesTests?: Record<string, any> | null;
     pinned: boolean;
     readonly: boolean;
     realtime: boolean;
@@ -802,6 +1034,12 @@ declare class JSONPadError extends Error {
      * Rate limit and quota information from the response
      */
     readonly meta: ResponseMeta;
+    /**
+     * Structured information about the error, when the API sends any: the
+     * diagnostics for write rules that don't compile, the tests that failed,
+     * or the rule that refused a write
+     */
+    readonly details: Record<string, any> | null;
     constructor(status: number, body: string, meta: ResponseMeta);
     /**
      * How many seconds to wait before retrying, when the API says: on a 429
@@ -809,6 +1047,55 @@ declare class JSONPadError extends Error {
      * being built
      */
     get retryAfter(): number | null;
+}
+
+/**
+ * Thrown when a list's write rules refuse a write
+ *
+ * `denied` tells the two cases apart:
+ * - the rules didn't authorise the write at all (403). The message is always
+ *   the same, on purpose
+ * - the write was authorised but failed one of the list's checks (400). The
+ *   message is the one the rule's author wrote
+ */
+declare class WriteRuleError extends JSONPadError {
+    /**
+     * True when no rule allowed the write (403), false when it failed a check
+     * (400)
+     */
+    readonly denied: boolean;
+    /**
+     * The operation the rules refused: create, update or delete
+     */
+    readonly operation: string | null;
+    /**
+     * The label of the rule that refused the write, if it has one and the API
+     * says which
+     */
+    readonly rule: string | null;
+    /**
+     * The line the rule starts on
+     */
+    readonly line: number | null;
+    constructor(status: number, body: string, meta: ResponseMeta);
+}
+/**
+ * Thrown when an item has changed since the ETag sent as `ifMatch` (412)
+ *
+ * Fetch the item again, re-apply the change, and write it again.
+ */
+declare class PreconditionFailedError extends JSONPadError {
+    constructor(status: number, body: string, meta: ResponseMeta);
+}
+/**
+ * Thrown when another write changed the item while this one was being made
+ * (409), on a list with write rules
+ *
+ * The rules were checked against a version of the item that no longer exists,
+ * so nothing was written. Fetch the item again and retry.
+ */
+declare class ConflictError extends JSONPadError {
+    constructor(status: number, body: string, meta: ResponseMeta);
 }
 
 /**
@@ -927,6 +1214,18 @@ declare class JSONPad extends EventTarget {
      */
     updateList(listId: string, data: Partial<List>): Promise<List>;
     /**
+     * Check a write against a list's rules, without making it
+     *
+     * Only for the account owner and for tokens that can update the list
+     */
+    testListRules(listId: string, write: TestWriteRulesRequest): Promise<TestWriteRulesResult>;
+    /**
+     * The most recent writes a list's rules refused, newest first
+     *
+     * Only for the account owner and for tokens that can update the list
+     */
+    fetchListRuleDenials(listId: string): Promise<WriteRuleDenial[]>;
+    /**
      * Delete a list
      */
     deleteList(listId: string): Promise<void>;
@@ -1019,6 +1318,12 @@ declare class JSONPad extends EventTarget {
     restoreItem(listId: string, itemId: string, eventId: string, parameters?: Partial<{
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read
+         * or wrote it with. The restore only happens if the item hasn't changed
+         * since, and fails with a PreconditionFailedError (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item
@@ -1026,6 +1331,13 @@ declare class JSONPad extends EventTarget {
     updateItem(listId: string, itemId: string, data: Partial<Item>, parameters?: Partial<{
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read or
+         * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+         * item hasn't changed since, and fails with a PreconditionFailedError
+         * (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Update an item's data
@@ -1034,6 +1346,13 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read or
+         * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+         * item hasn't changed since, and fails with a PreconditionFailedError
+         * (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Replace an item's data
@@ -1042,6 +1361,13 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read or
+         * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+         * item hasn't changed since, and fails with a PreconditionFailedError
+         * (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Patch an item's data
@@ -1050,11 +1376,25 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read or
+         * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+         * item hasn't changed since, and fails with a PreconditionFailedError
+         * (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Delete an item
      */
-    deleteItem(listId: string, itemId: string, identity?: IdentityParameter): Promise<void>;
+    deleteItem(listId: string, itemId: string, identity?: IdentityParameter, options?: Partial<{
+        /**
+         * The item's ETag, from the etag header of the response you last read
+         * or wrote it with. The delete only happens if the item hasn't changed
+         * since, and fails with a PreconditionFailedError (412) if it has
+         */
+        ifMatch: string;
+    }>): Promise<void>;
     /**
      * Delete part of an item's data
      */
@@ -1062,6 +1402,13 @@ declare class JSONPad extends EventTarget {
         pointer: string;
         includeData: boolean;
         includeGuarded: boolean;
+        /**
+         * The item's ETag, from the etag header of the response you last read or
+         * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+         * item hasn't changed since, and fails with a PreconditionFailedError
+         * (412) if it has
+         */
+        ifMatch: string;
     }>, identity?: IdentityParameter): Promise<Item>;
     /**
      * Create a new index
@@ -1385,4 +1732,4 @@ declare class JSONPad extends EventTarget {
     exportSchema(options?: ExportSchemaOptions): Promise<SyncSchemaExport>;
 }
 
-export { type CompleteIdentityOAuthOptions, Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOAuthProvider, type IdentityOAuthStorage, type IdentityOrderBy, type IdentityParameter, type IdentityProviderAccount, type IdentityStats, type IdentityTokenRequest, type IdentityTokenRequestResult, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, ResponseEvent, type ResponseMeta, type SearchResult, type StartIdentityOAuthOptions, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, Token, type TokenPermission, type TokenSelf, type Usage, User, JSONPad as default };
+export { type CompleteIdentityOAuthOptions, ConflictError, Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOAuthProvider, type IdentityOAuthStorage, type IdentityOrderBy, type IdentityParameter, type IdentityProviderAccount, type IdentityStats, type IdentityTokenRequest, type IdentityTokenRequestResult, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, PreconditionFailedError, ResponseEvent, type ResponseMeta, type SearchResult, type StartIdentityOAuthOptions, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, type TestWriteRulesRequest, type TestWriteRulesResult, Token, type TokenPermission, type TokenSelf, type Usage, User, type WriteRuleDenial, type WriteRuleDiagnostic, WriteRuleError, type WriteRuleStatementResult, JSONPad as default };

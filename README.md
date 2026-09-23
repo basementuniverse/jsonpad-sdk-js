@@ -154,6 +154,85 @@ Because a guard index hides its value, it can't also be used as an alias or for
 sorting, filtering or searching — each of those would expose the value through
 another channel. Creating or updating an index that combines them is refused.
 
+## Write rules
+
+A list can have **write rules**: a short, declarative check that runs on every
+item write made with an API token. `allow` statements decide who may write, and
+`require` statements check the data. Neither runs for your own writes in the
+dashboard.
+
+```ts
+await jsonpad.updateList('games', {
+  rules: `
+    allow update "your turn": identity != null && identity.id == old.currentPlayerId;
+    require update "append only": startsWith(new.moves, old.moves)
+      else "moves can only be added";
+  `,
+});
+```
+
+A write the rules don't allow throws a `WriteRuleError`:
+
+```ts
+try {
+  await jsonpad.updateItemData('games', gameId, { moves: [] });
+} catch (error) {
+  if (error instanceof WriteRuleError) {
+    // denied: no rule allowed the write (403)
+    // otherwise: it failed a check (400), and error.message is the message
+    // the rule's author wrote
+    console.log(error.denied, error.message, error.rule);
+  }
+}
+```
+
+To try a write without making it, use `testListRules`. It reports what each
+rule did, which is what the dashboard's playground shows:
+
+```ts
+const result = await jsonpad.testListRules('games', {
+  action: 'update',
+  itemId: gameId,
+  merge: { moves: ['a1'] },
+  identityId: alice.id,
+});
+
+console.log(result.allowed, result.stage, result.statements);
+```
+
+`fetchListRuleDenials` returns the most recent writes the rules refused, so you
+can see why clients are getting 403s. It carries the rule that refused each
+write, never the data.
+
+Rules are only returned to the account owner and to tokens that can update the
+list, so `list.rules` is undefined for everyone else.
+
+## Conditional writes
+
+By default the last write to an item wins. Pass `ifMatch` with the item's ETag
+to write only if nobody else has changed it since you read it:
+
+```ts
+const item = await jsonpad.fetchItem('games', gameId);
+const etag = jsonpad.lastResponseMeta?.etag;
+
+try {
+  await jsonpad.updateItemData('games', gameId, next, { ifMatch: etag });
+} catch (error) {
+  if (error instanceof PreconditionFailedError) {
+    // Someone else wrote first: fetch the item again and retry
+  }
+}
+```
+
+Every item read and write puts the item's ETag in `lastResponseMeta.etag`, so a
+client that keeps writing the same item can pass the previous write's ETag
+along without fetching it again.
+
+On a list with write rules, a `ConflictError` (409) means the item changed
+while the write was being made, after its rules had been checked. Nothing was
+written; fetch the item again and retry.
+
 ## Index builds
 
 An index's values are built in the background. `createIndex` returns straight
@@ -444,6 +523,8 @@ installed this package globally for the command, run
 - [Fetch list events](#fetch-list-events)
 - [Fetch a list event](#fetch-a-list-event)
 - [Update a list](#update-a-list)
+- [Test a list's write rules](#test-a-lists-write-rules)
+- [Fetch a list's write rule denials](#fetch-a-lists-write-rule-denials)
 - [Delete a list](#delete-a-list)
 
 ### Items
@@ -537,6 +618,14 @@ function createList(
 
     // An optional JSON Schema for validating item data in this list
     schema?: any;
+
+    // The list's write rules, checked on every item write made with an API token
+    // Blank text or null means no rules
+    rules?: string | null;
+
+    // Tests the write rules have to pass before they're saved
+    // See https://jsonpad.io/schema/rules-tests-v1.json
+    rulesTests?: Record<string, any> | null;
 
     // Should this item be pinned to the menu (for quick access) in the jsonpad.io dashboard?
     pinned?: boolean;
@@ -904,6 +993,14 @@ function updateList(
     // An optional JSON Schema for validating item data in this list
     schema?: any;
 
+    // The list's write rules, checked on every item write made with an API token
+    // Blank text or null means no rules
+    rules?: string | null;
+
+    // Tests the write rules have to pass before they're saved
+    // See https://jsonpad.io/schema/rules-tests-v1.json
+    rulesTests?: Record<string, any> | null;
+
     // Should this item be pinned to the menu (for quick access) in the jsonpad.io dashboard?
     pinned?: boolean;
 
@@ -943,6 +1040,90 @@ const list: List = await jsonpad.updateList(
     description: 'This is my updated list',
   }
 );
+```
+
+### Test a list's write rules
+
+Check a write against a list's rules without making it. Only for the account
+owner and for tokens that can update the list.
+
+```ts
+function testListRules(
+  listId: string, // The list id or path name
+  write: {
+    // The rules to test, or the list's stored rules by default
+    rules?: string | null;
+
+    // What the write does ("restore" is checked with the update rules)
+    action: 'create' | 'update' | 'delete' | 'restore';
+
+    // An item to take the old data and metadata from
+    itemId?: string;
+
+    // The data before and after the write. "patch" (JSON Patch) and "merge"
+    // (JSON merge patch) build the new data from the old data instead
+    old?: any;
+    new?: any;
+    patch?: { op: string; path: string; from?: string; value?: any }[];
+    merge?: any;
+
+    // The identity to write as: an existing one, or any identity you describe
+    identityId?: string;
+    identity?: Record<string, any> | null;
+
+    // The token to write as. Defaults to the calling token
+    token?: { id: string; tags?: string[] };
+
+    // The time of the write, which the rules see as "now"
+    now?: Date | string;
+
+    // The JSON pointer, for writes to part of an item's data
+    pointer?: string | null;
+
+    // Run $jsonpad-var substitution on the new data first (default true)
+    substitute?: boolean;
+
+    // Check the list's JSON schema between the two stages (default true)
+    schema?: boolean;
+  }
+): Promise<TestWriteRulesResult>;
+```
+
+Example:
+
+```ts
+const result = await jsonpad.testListRules('games', {
+  action: 'update',
+  itemId: '098e58bc-05f6-4a59-a755-fb9bc54f4a5b',
+  merge: { moves: ['a1'] },
+  identityId: '3e3ce22b-ec32-4c9d-956b-27ba00f38aa9',
+});
+
+console.log(result.allowed); // false
+console.log(result.stage); // "require"
+console.log(result.message); // "moves can only be added"
+console.log(result.statements); // every rule, with its result and trace
+```
+
+### Fetch a list's write rule denials
+
+The most recent writes the list's rules refused, newest first. Only for the
+account owner and for tokens that can update the list.
+
+```ts
+function fetchListRuleDenials(
+  listId: string // The list id or path name
+): Promise<WriteRuleDenial[]>;
+```
+
+Example:
+
+```ts
+const denials = await jsonpad.fetchListRuleDenials('games');
+
+console.log(denials[0].stage); // "allow" (denied) or "require" (failed a check)
+console.log(denials[0].statementLabel); // "your turn"
+console.log(denials[0].identityId);
 ```
 
 ### Delete a list
@@ -1512,6 +1693,12 @@ function restoreItem(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1571,6 +1758,12 @@ function updateItem(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1623,6 +1816,12 @@ function updateItemData(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1675,6 +1874,12 @@ function replaceItemData(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1727,6 +1932,12 @@ function patchItemData(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request
@@ -1772,6 +1983,13 @@ function deleteItem(
 
     // Set the identity token, or override cached identity token
     token?: string;
+  },
+  options?: {
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The delete only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   }
 ): Promise<void>;
 ```
@@ -1806,6 +2024,12 @@ function deleteItemData(
     // the items owned by that identity
     // Default is false
     includeGuarded?: boolean;
+
+    // The item's ETag, from the etag header of the response you last read or
+    // wrote it with (jsonpad.lastResponseMeta?.etag)
+    // The write only happens if the item hasn't changed since; otherwise it
+    // throws a PreconditionFailedError (412)
+    ifMatch?: string;
   },
   identity?: {
     // Ignore cached identity credentials and don't send them with the request

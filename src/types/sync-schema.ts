@@ -33,6 +33,28 @@ export type SyncSchemaListDefinition = {
   description?: string;
   tags?: string[];
   schema?: Record<string, any> | null;
+
+  /**
+   * The list's write rules: the text, an array of lines (JSON has no
+   * multi-line strings), or null for no rules
+   */
+  rules?: string | string[] | null;
+
+  /**
+   * The tests the write rules have to pass
+   */
+  rulesTests?: Record<string, any> | null;
+
+  /**
+   * A file holding the rules, relative to the document. Resolved by the
+   * JSONPad CLI: the API refuses a document that still has it
+   */
+  rulesFile?: string;
+
+  /**
+   * A file holding the rule tests, resolved by the CLI like rulesFile
+   */
+  rulesTestsFile?: string;
   readonly?: boolean;
   realtime?: boolean;
   protected?: boolean;
@@ -71,6 +93,12 @@ export type SyncSchemaError = {
   name: string;
   code: number;
   message: string;
+
+  /**
+   * Structured information about the error, e.g. the diagnostics for write
+   * rules that don't compile, or the rule tests that failed
+   */
+  details?: Record<string, any>;
 };
 
 export type SyncSchemaChange = {

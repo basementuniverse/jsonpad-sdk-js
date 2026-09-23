@@ -1,4 +1,10 @@
-import { IndexBuildError, JSONPadError } from './errors';
+import {
+  ConflictError,
+  IndexBuildError,
+  JSONPadError,
+  PreconditionFailedError,
+  WriteRuleError,
+} from './errors';
 import { ResponseEvent } from './events';
 import { JSONPad, JSONPadOptions } from './jsonpad';
 import { Event, Identity, Index, Item, List, Token, User } from './models';
@@ -48,13 +54,19 @@ import {
   SyncSchemaListDefinition,
   SyncSchemaOptions,
   SyncSchemaResult,
+  TestWriteRulesRequest,
+  TestWriteRulesResult,
   TokenPermission,
   TokenSelf,
   Usage,
+  WriteRuleDenial,
+  WriteRuleDiagnostic,
+  WriteRuleStatementResult,
 } from './types';
 
 export default JSONPad;
 export {
+  ConflictError,
   Event,
   EventOrderBy,
   EventStream,
@@ -95,6 +107,7 @@ export {
   OrderDirection,
   PaginatedRequest,
   PaginatedResponse,
+  PreconditionFailedError,
   ResponseEvent,
   ResponseMeta,
   SearchResult,
@@ -109,9 +122,15 @@ export {
   SyncSchemaListDefinition,
   SyncSchemaOptions,
   SyncSchemaResult,
+  TestWriteRulesRequest,
+  TestWriteRulesResult,
   Token,
   TokenPermission,
   TokenSelf,
   Usage,
   User,
+  WriteRuleDenial,
+  WriteRuleDiagnostic,
+  WriteRuleError,
+  WriteRuleStatementResult,
 };

@@ -29,3 +29,4 @@ export * from './sync-schema';
 export * from './token-permission';
 export * from './token-self';
 export * from './usage';
+export * from './write-rules';

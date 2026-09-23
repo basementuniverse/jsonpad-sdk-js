@@ -8,6 +8,36 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [2.2.0] - 2026-09-23
+
+Needs the JSONPad API release with write rules and conditional writes.
+
+### Added
+
+- **Write rules.** `rules` and `rulesTests` in `createList()` and
+  `updateList()`, and on the `List` model (only returned to the account owner
+  and to tokens that can update the list).
+- `testListRules()` checks a write against a list's rules without making it,
+  and reports what each rule did.
+- `fetchListRuleDenials()` returns the most recent writes a list's rules
+  refused.
+- `WriteRuleError`, thrown when the rules refuse a write. `denied` tells a
+  write no rule allowed (403) from one that failed a check (400), and `rule`
+  and `line` say which statement refused it.
+- **Conditional writes.** `ifMatch` on `updateItem()`, `updateItemData()`,
+  `replaceItemData()`, `patchItemData()`, `restoreItem()`, `deleteItemData()`
+  and `deleteItem()`. The write only happens if the item hasn't changed since
+  the ETag was issued.
+- `PreconditionFailedError` (412, the item has changed) and `ConflictError`
+  (409, another write landed while this one was being made).
+- `etag` in `ResponseMeta`, so `lastResponseMeta.etag` gives the ETag to pass
+  as `ifMatch` next time.
+- `details` on `JSONPadError`, carrying the structured information the API
+  sends with some errors: the diagnostics for rules that don't compile, the
+  rule tests that failed, or the rule that refused a write.
+- `rules`, `rulesTests`, `rulesFile` and `rulesTestsFile` in
+  `SyncSchemaListDefinition`, and `details` on `SyncSchemaError`.
+
 ## [2.1.0] - 2026-09-18
 
 Needs the JSONPad API release with identity groups, sessions, password reset

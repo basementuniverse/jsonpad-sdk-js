@@ -26,6 +26,13 @@ export class JSONPadError extends Error {
    */
   public readonly meta: ResponseMeta;
 
+  /**
+   * Structured information about the error, when the API sends any: the
+   * diagnostics for write rules that don't compile, the tests that failed,
+   * or the rule that refused a write
+   */
+  public readonly details: Record<string, any> | null;
+
   public constructor(status: number, body: string, meta: ResponseMeta) {
     // The message is the raw response body, as it was before this class
     // existed, so that anything already parsing it keeps working
@@ -40,6 +47,10 @@ export class JSONPadError extends Error {
     this.status = status;
     this.code = typeof parsed?.code === 'number' ? parsed.code : null;
     this.errorName = typeof parsed?.name === 'string' ? parsed.name : null;
+    this.details =
+      parsed?.details && typeof parsed.details === 'object'
+        ? parsed.details
+        : null;
     this.meta = meta;
   }
 

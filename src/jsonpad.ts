@@ -38,8 +38,11 @@ import {
   SyncSchemaExport,
   SyncSchemaOptions,
   SyncSchemaResult,
+  TestWriteRulesRequest,
+  TestWriteRulesResult,
   TokenSelf,
   Usage,
+  WriteRuleDenial,
 } from './types';
 import exclude from './utilities/exclude';
 import {
@@ -141,6 +144,7 @@ export class JSONPad extends EventTarget {
     ...args: Parameters<typeof sendRequest>
   ): Promise<T | null> {
     const [token, method, path, parameters, body, group, identityToken] = args;
+    const extraHeaders = args[8];
 
     try {
       const { data, meta } = await sendRequest<T>(
@@ -151,7 +155,8 @@ export class JSONPad extends EventTarget {
         body,
         group,
         identityToken,
-        this.apiUrl
+        this.apiUrl,
+        extraHeaders
       );
       this.handleResponse(meta);
 
@@ -345,6 +350,45 @@ export class JSONPad extends EventTarget {
         data
       ))!
     );
+  }
+
+  /**
+   * Check a write against a list's rules, without making it
+   *
+   * Only for the account owner and for tokens that can update the list
+   */
+  public async testListRules(
+    listId: string,
+    write: TestWriteRulesRequest
+  ): Promise<TestWriteRulesResult> {
+    return (await this.request<TestWriteRulesResult>(
+      this.token,
+      'POST',
+      `/lists/${listId}/rules/test`,
+      undefined,
+      {
+        ...write,
+        now: write.now instanceof Date ? write.now.toISOString() : write.now,
+      }
+    ))!;
+  }
+
+  /**
+   * The most recent writes a list's rules refused, newest first
+   *
+   * Only for the account owner and for tokens that can update the list
+   */
+  public async fetchListRuleDenials(listId: string): Promise<WriteRuleDenial[]> {
+    const response = (await this.request<{
+      limit: number;
+      data: (WriteRuleDenial & { createdAt: string; updatedAt: string })[];
+    }>(this.token, 'GET', `/lists/${listId}/rules/denials`))!;
+
+    return response.data.map(denial => ({
+      ...denial,
+      createdAt: new Date(denial.createdAt),
+      updatedAt: new Date(denial.updatedAt),
+    }));
   }
 
   /**
@@ -612,18 +656,29 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       includeData: boolean;
       includeGuarded: boolean;
+
+      /**
+       * The item's ETag, from the etag header of the response you last read
+       * or wrote it with. The restore only happens if the item hasn't changed
+       * since, and fails with a PreconditionFailedError (412) if it has
+       */
+      ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
+
     return new Item(
       (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/events/${eventId}/restore`,
-        parameters,
+        query,
         undefined,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }
@@ -638,18 +693,29 @@ export class JSONPad extends EventTarget {
     parameters?: Partial<{
       includeData: boolean;
       includeGuarded: boolean;
+    /**
+     * The item's ETag, from the etag header of the response you last read or
+     * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+     * item hasn't changed since, and fails with a PreconditionFailedError
+     * (412) if it has
+     */
+    ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
+
     return new Item(
       (await this.request<ConstructorParameters<typeof Item>[0]>(
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}`,
-        parameters,
+        query,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }
@@ -665,9 +731,17 @@ export class JSONPad extends EventTarget {
       pointer: string;
       includeData: boolean;
       includeGuarded: boolean;
+    /**
+     * The item's ETag, from the etag header of the response you last read or
+     * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+     * item hasn't changed since, and fails with a PreconditionFailedError
+     * (412) if it has
+     */
+    ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
@@ -675,10 +749,12 @@ export class JSONPad extends EventTarget {
         this.token,
         'POST',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        parameters,
+        query,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }
@@ -694,9 +770,17 @@ export class JSONPad extends EventTarget {
       pointer: string;
       includeData: boolean;
       includeGuarded: boolean;
+    /**
+     * The item's ETag, from the etag header of the response you last read or
+     * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+     * item hasn't changed since, and fails with a PreconditionFailedError
+     * (412) if it has
+     */
+    ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
@@ -704,10 +788,12 @@ export class JSONPad extends EventTarget {
         this.token,
         'PUT',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        parameters,
+        query,
         data,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }
@@ -723,9 +809,17 @@ export class JSONPad extends EventTarget {
       pointer: string;
       includeData: boolean;
       includeGuarded: boolean;
+    /**
+     * The item's ETag, from the etag header of the response you last read or
+     * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+     * item hasn't changed since, and fails with a PreconditionFailedError
+     * (412) if it has
+     */
+    ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
@@ -733,10 +827,12 @@ export class JSONPad extends EventTarget {
         this.token,
         'PATCH',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        parameters,
+        query,
         patch,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }
@@ -747,7 +843,15 @@ export class JSONPad extends EventTarget {
   public async deleteItem(
     listId: string,
     itemId: string,
-    identity?: IdentityParameter
+    identity?: IdentityParameter,
+    options?: Partial<{
+      /**
+       * The item's ETag, from the etag header of the response you last read
+       * or wrote it with. The delete only happens if the item hasn't changed
+       * since, and fails with a PreconditionFailedError (412) if it has
+       */
+      ifMatch: string;
+    }>
   ) {
     await this.request(
       this.token,
@@ -756,7 +860,11 @@ export class JSONPad extends EventTarget {
       undefined,
       undefined,
       identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+      undefined,
+      options?.ifMatch
+        ? { [constants.IF_MATCH_HEADER]: options.ifMatch }
+        : undefined
     );
   }
 
@@ -770,9 +878,17 @@ export class JSONPad extends EventTarget {
       pointer: string;
       includeData: boolean;
       includeGuarded: boolean;
+    /**
+     * The item's ETag, from the etag header of the response you last read or
+     * wrote it with (`lastResponseMeta.etag`). The write only happens if the
+     * item hasn't changed since, and fails with a PreconditionFailedError
+     * (412) if it has
+     */
+    ifMatch: string;
     }>,
     identity?: IdentityParameter
   ): Promise<Item> {
+    const { ifMatch, ...query } = parameters ?? {};
     const pointerString = parameters?.pointer ? `/${parameters.pointer}` : '';
 
     return new Item(
@@ -780,10 +896,12 @@ export class JSONPad extends EventTarget {
         this.token,
         'DELETE',
         `/lists/${listId}/items/${itemId}/data${pointerString}`,
-        parameters,
+        query,
         undefined,
         identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
-        identity?.ignore ? undefined : identity?.token ?? this.identityToken
+        identity?.ignore ? undefined : identity?.token ?? this.identityToken,
+        undefined,
+        ifMatch ? { [constants.IF_MATCH_HEADER]: ifMatch } : undefined
       ))!
     );
   }

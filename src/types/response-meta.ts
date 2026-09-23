@@ -65,4 +65,11 @@ export type ResponseMeta = {
    * On a 429 response, how many seconds to wait before retrying
    */
   retryAfter: number | null;
+
+  /**
+   * The item's ETag, on a response that carries one (fetching or writing an
+   * item). Send it back as `ifMatch` to write only if the item hasn't
+   * changed since
+   */
+  etag?: string | null;
 };

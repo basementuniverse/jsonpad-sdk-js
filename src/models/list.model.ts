@@ -10,6 +10,18 @@ export class List {
   public tags!: string[];
   public pathName!: string;
   public schema!: any;
+
+  /**
+   * The list's write rules, checked on every item write made with an API
+   * token. Only returned to the account owner and to tokens that can update
+   * the list
+   */
+  public rules?: string | null;
+
+  /**
+   * The tests the write rules have to pass before they're saved
+   */
+  public rulesTests?: Record<string, any> | null;
   public pinned!: boolean;
   public readonly!: boolean;
   public realtime!: boolean;
