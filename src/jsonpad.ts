@@ -28,9 +28,12 @@ import {
   PaginatedRequest,
   PaginatedResponse,
   ResponseMeta,
+  RunFlowOptions,
+  RunPublicFlowOptions,
   SearchResult,
   StartIdentityOAuthOptions,
   ExportSchemaOptions,
+  FlowResponse,
   MoveListsOptions,
   MoveListsResult,
   MoveListsSelection,
@@ -51,7 +54,7 @@ import {
   getStorage,
   storageKey,
 } from './utilities/oauth';
-import sendRequest from './utilities/request';
+import sendRequest, { requestWithResponse } from './utilities/request';
 
 export type JSONPadOptions = {
   /**
@@ -1809,6 +1812,112 @@ export class JSONPad extends EventTarget {
         periodEnd: new Date(result.usage.periodEnd),
       },
     };
+  }
+
+  // #endregion
+
+  // ---------------------------------------------------------------------------
+  // FLOWS
+  // #region flows
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Call an endpoint flow, e.g. `runFlow('create-order', { productId })` for
+   * a flow at /flows/create-order
+   *
+   * The token needs the `run` permission on the flow, or `run-with-identity`
+   * when the SDK is signed in as an identity (or one is given). The flow
+   * runs in one transaction: if it fails (a require node refuses, an item it
+   * needs isn't there, a write is refused) nothing it wrote is kept, and a
+   * FlowError is thrown with the status and message the flow failed with
+   */
+  public async runFlow<T = any>(
+    path: string,
+    input?: Record<string, any> | null,
+    options: RunFlowOptions = {}
+  ): Promise<FlowResponse<T>> {
+    const identity = options.identity;
+
+    return this.sendFlowRequest<T>(
+      this.token,
+      options.method ?? 'POST',
+      `/flows/${path.replace(/^\/+/, '').replace(/^flows\//, '')}`,
+      input,
+      identity?.ignore ? undefined : identity?.group ?? this.identityGroup,
+      identity?.ignore ? undefined : identity?.token ?? this.identityToken
+    );
+  }
+
+  /**
+   * Call a public endpoint flow by its id. No token is sent: anyone can call
+   * a public flow, and its require nodes decide what they may do
+   */
+  public async runPublicFlow<T = any>(
+    flowId: string,
+    input?: Record<string, any> | null,
+    options: RunPublicFlowOptions = {}
+  ): Promise<FlowResponse<T>> {
+    return this.sendFlowRequest<T>(
+      null,
+      options.method ?? 'POST',
+      `/flows/public/${flowId}`,
+      input
+    );
+  }
+
+  private async sendFlowRequest<T>(
+    token: string | null,
+    method: string,
+    path: string,
+    input?: Record<string, any> | null,
+    group?: string,
+    identityToken?: string
+  ): Promise<FlowResponse<T>> {
+    // A GET flow is given its input as query parameters
+    const query =
+      method === 'GET' && input
+        ? Object.fromEntries(
+            Object.entries(input).map(([key, value]) => [
+              key,
+              typeof value === 'object' && value !== null
+                ? JSON.stringify(value)
+                : value,
+            ])
+          )
+        : undefined;
+
+    try {
+      const response = await requestWithResponse<T>(
+        token,
+        method,
+        path,
+        query,
+        method === 'GET' ? undefined : (input ?? undefined),
+        group,
+        identityToken,
+        this.apiUrl
+      );
+      this.handleResponse(response.meta);
+
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, name) => {
+        headers[name] = value;
+      });
+
+      return {
+        status: response.status,
+        body: response.data,
+        headers,
+        runId: response.headers.get(constants.FLOW_RUN_HEADER),
+        meta: response.meta,
+      };
+    } catch (error) {
+      if (error instanceof JSONPadError) {
+        this.handleResponse(error.meta);
+      }
+
+      throw error;
+    }
   }
 
   // #endregion

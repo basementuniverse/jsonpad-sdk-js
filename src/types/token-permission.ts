@@ -16,11 +16,19 @@ export type TokenPermission = {
     | 'update-with-identity'
     | 'delete-with-identity'
     | 'restore-with-identity'
-    | 'sync-schema';
-  resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
+    | 'sync-schema'
+    | 'run'
+    | 'run-with-identity';
+  resourceType?:
+    'list' | 'item' | 'index' | 'identity' | 'event' | 'stats' | 'flow';
   listIds?: string[];
   itemIds?: string[];
   indexIds?: string[];
   identityIds?: string[];
   groups?: string[];
+
+  /**
+   * For the run and run-with-identity actions: the flows the token can run
+   */
+  flowIds?: string[];
 };

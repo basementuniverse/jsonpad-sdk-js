@@ -84,6 +84,35 @@ export type SyncSchemaDocument = {
    * Lists, keyed by path name
    */
   lists: Record<string, SyncSchemaListDefinition>;
+
+  /**
+   * Flows, keyed by name. Leave this out and the sync doesn't touch flows
+   * (and a prune doesn't delete any). Syncing flows needs a token that is
+   * allowed everything
+   */
+  flows?: Record<string, SyncSchemaFlowDefinition>;
+};
+
+/**
+ * A flow in a schema sync document
+ */
+export type SyncSchemaFlowDefinition = {
+  /**
+   * The flow document. Its name can be left out: it's the key. Its layout
+   * is only used when the flow is created
+   */
+  document: Record<string, any>;
+
+  /**
+   * The flow's stored tests, which must pass, or null for none. Left out,
+   * they're left as they are
+   */
+  tests?: Record<string, any> | null;
+
+  /**
+   * Left out, a new flow is activated and an existing one is left as it is
+   */
+  activated?: boolean;
 };
 
 export type SyncSchemaAction =
@@ -102,12 +131,12 @@ export type SyncSchemaError = {
 };
 
 export type SyncSchemaChange = {
-  resourceType: 'list' | 'index';
+  resourceType: 'list' | 'index' | 'flow';
 
   /**
-   * The list's path name
+   * The list's path name, for list and index changes
    */
-  list: string;
+  list?: string;
 
   /**
    * The index's path name, for index changes
@@ -115,6 +144,12 @@ export type SyncSchemaChange = {
   index?: string;
   listId?: string;
   indexId?: string;
+
+  /**
+   * The flow's name and id, for flow changes
+   */
+  flow?: string;
+  flowId?: string;
   action: SyncSchemaAction;
   fields?: Record<string, { from: any; to: any }>;
   build?: {

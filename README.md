@@ -419,6 +419,55 @@ See the [OAuth guide](https://jsonpad.io/docs/identity-oauth) for the whole
 flow, and the [Google](https://jsonpad.io/docs/identity-oauth-google) and
 [GitHub](https://jsonpad.io/docs/identity-oauth-github) setup guides.
 
+## Flows
+
+A **flow** is a small program you draw in the dashboard instead of writing: a
+graph of steps that read and write items in any of your lists, check who's
+asking, and respond. An **endpoint flow** is called like an API endpoint, and
+everything it writes happens together, or not at all.
+
+```ts
+const { status, body, runId } = await jsonpad.runFlow('create-order', {
+  productId,
+  quantity: 2,
+});
+```
+
+The token needs the `run` permission on the flow, or `run-with-identity` when
+the SDK is signed in as an identity (the flow then sees who's calling as
+`identity`). A GET flow is given its input as query parameters:
+
+```ts
+const { body } = await jsonpad.runFlow('leaderboard', { top: 10 }, {
+  method: 'GET',
+});
+```
+
+When a flow fails (one of its `require` nodes refuses, an item it needs isn't
+there, or a write it makes is refused) nothing it wrote is kept, and a
+`FlowError` is thrown with the status and message the flow failed with:
+
+```ts
+try {
+  await jsonpad.runFlow('deal-card', { gameId });
+} catch (error) {
+  if (error instanceof FlowError) {
+    // e.g. 403, "not your turn", REQUIRE_FAILED, at node "your_turn"
+    console.log(error.status, error.flowMessage, error.flowCode, error.node);
+  }
+}
+```
+
+A **public flow** can be called without a token, by its id. Its `require`
+nodes decide who may do what:
+
+```ts
+const { body } = await jsonpad.runPublicFlow(flowId, { email });
+```
+
+Event flows run by themselves after items change, so there's nothing to call.
+See [Flows](https://jsonpad.io/docs/flows) in the docs.
+
 ## Schema sync
 
 Describe your lists and their indexes in a document (usually a
@@ -588,6 +637,11 @@ installed this package globally for the command, run
 ### Tokens
 
 - [Fetch the current token](#fetch-the-current-token)
+
+### Flows
+
+- [Run a flow](#run-a-flow)
+- [Run a public flow](#run-a-public-flow)
 
 ### Schema sync
 
@@ -3295,6 +3349,55 @@ Example:
 const self: TokenSelf = await jsonpad.fetchSelfToken();
 
 console.log(`${self.usage.requestsRemaining} requests left this month`);
+```
+
+### Run a flow
+
+Call an endpoint flow. See [Flows](#flows). A flow that fails throws a
+`FlowError`, and nothing it wrote is kept.
+
+```ts
+function runFlow<T = any>(
+  // The flow's endpoint path, e.g. 'create-order' for /flows/create-order
+  path: string,
+
+  // The request body, or the query parameters for a GET flow
+  input?: Record<string, any> | null,
+  options?: {
+    // Defaults to POST
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+    // Run as this identity, or { ignore: true } to run without the identity
+    // the SDK is signed in as
+    identity?: IdentityParameter;
+  }
+): Promise<FlowResponse<T>>;
+```
+
+Example:
+
+```ts
+const response: FlowResponse<{ orderId: string }> = await jsonpad.runFlow(
+  'create-order',
+  { productId, quantity: 2 }
+);
+
+console.log(response.status, response.body.orderId, response.runId);
+```
+
+### Run a public flow
+
+Call a public endpoint flow by its id, without a token.
+
+```ts
+function runPublicFlow<T = any>(
+  flowId: string,
+  input?: Record<string, any> | null,
+  options?: {
+    // Defaults to POST
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  }
+): Promise<FlowResponse<T>>;
 ```
 
 ### Sync a schema

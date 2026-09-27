@@ -1,6 +1,186 @@
+/**
+ * Rate limit and quota information, read from the headers of an API response
+ */
+type ResponseMeta = {
+    /**
+     * The HTTP status code
+     */
+    status: number;
+    /**
+     * The request id, which is useful when reporting a problem
+     */
+    requestId: string | null;
+    /**
+     * The per-minute rate limit, or null if the plan has no per-minute limit
+     */
+    rateLimit: {
+        /**
+         * How many requests the plan allows per minute
+         */
+        total: number;
+        /**
+         * How many more requests can be made in the rolling minute, after this one
+         */
+        remaining: number;
+    } | null;
+    /**
+     * The monthly request quota, or null if the request wasn't metered
+     */
+    quota: {
+        /**
+         * The monthly allowance, excluding any overdraft or credits, or null if
+         * the plan has no monthly limit
+         */
+        total: number | null;
+        /**
+         * How many requests are left before writes are refused, including any
+         * overdraft and credits, or null if the plan has no monthly limit
+         */
+        remaining: number | null;
+        /**
+         * How many prepaid request credits are held, or null if the plan has no
+         * monthly limit
+         */
+        credits: number | null;
+        /**
+         * When the monthly allowance resets
+         */
+        resetAt: Date;
+        /**
+         * True if the allowance and credits have run out, and this read was served
+         * at the free tier's rate limit
+         */
+        degraded: boolean;
+    } | null;
+    /**
+     * On a 429 response, how many seconds to wait before retrying
+     */
+    retryAfter: number | null;
+    /**
+     * The item's ETag, on a response that carries one (fetching or writing an
+     * item). Send it back as `ifMatch` to write only if the item hasn't
+     * changed since
+     */
+    etag?: string | null;
+};
+
+/**
+ * Thrown when the API responds with an error status
+ */
+declare class JSONPadError extends Error {
+    /**
+     * The HTTP status code, e.g. 429
+     */
+    readonly status: number;
+    /**
+     * The jsonpad error code, e.g. 10007, or null if the response wasn't a
+     * jsonpad error
+     */
+    readonly code: number | null;
+    /**
+     * The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED', or null if the
+     * response wasn't a jsonpad error
+     */
+    readonly errorName: string | null;
+    /**
+     * Rate limit and quota information from the response
+     */
+    readonly meta: ResponseMeta;
+    /**
+     * Structured information about the error, when the API sends any: the
+     * diagnostics for write rules that don't compile, the tests that failed,
+     * or the rule that refused a write
+     */
+    readonly details: Record<string, any> | null;
+    constructor(status: number, body: string, meta: ResponseMeta);
+    /**
+     * How many seconds to wait before retrying, when the API says: on a 429
+     * response, or a 409 INDEX_BUILDING response for an index that is still
+     * being built
+     */
+    get retryAfter(): number | null;
+}
+
+/**
+ * Thrown when an endpoint flow fails: a require node refused, an item it
+ * needed wasn't found, or a write it made was refused. Nothing the run wrote
+ * was kept
+ *
+ * `status` is the status the flow failed with (a require node's chosen
+ * status, for example), and `message` is its message
+ */
+declare class FlowError extends JSONPadError {
+    /**
+     * Why the run failed, e.g. REQUIRE_FAILED, NOT_FOUND, TIMEOUT
+     */
+    readonly flowCode: string | null;
+    /**
+     * The node the run failed at, if it failed at one
+     */
+    readonly node: string | null;
+    /**
+     * The run's id, as shown in the flow's run log in the dashboard
+     */
+    readonly runId: string | null;
+    constructor(status: number, body: string, meta: ResponseMeta, runId?: string | null);
+    /**
+     * The message the flow failed with (JSONPadError's `message` is the raw
+     * response body)
+     */
+    get flowMessage(): string;
+}
+
 type EventOrderBy = 'createdAt' | 'type';
 
 type EventStream = 'list' | 'item' | 'index';
+
+type IdentityParameter = {
+    ignore?: boolean;
+    group?: string;
+    token: string;
+};
+
+type FlowMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type RunFlowOptions = {
+    /**
+     * The flow's HTTP method. Defaults to POST. A GET flow is given its input
+     * as query parameters, so every value arrives as a string
+     */
+    method?: FlowMethod;
+    /**
+     * Run as an identity (the token needs the run-with-identity permission),
+     * or `{ ignore: true }` to run without the identity the SDK is signed in as
+     */
+    identity?: IdentityParameter;
+};
+type RunPublicFlowOptions = {
+    /**
+     * The flow's HTTP method. Defaults to POST
+     */
+    method?: FlowMethod;
+};
+/**
+ * What an endpoint flow responded with
+ */
+type FlowResponse<T = any> = {
+    /**
+     * The status the flow's respond node chose (204 if it has none)
+     */
+    status: number;
+    /**
+     * The response body, or null for a response with no body
+     */
+    body: T | null;
+    /**
+     * Headers the flow's respond node set
+     */
+    headers: Record<string, string>;
+    /**
+     * The run's id, as shown in the flow's run log in the dashboard
+     */
+    runId: string | null;
+    meta: ResponseMeta;
+};
 
 type IdentityEventType = 'identity-created' | 'identity-updated' | 'identity-deleted' | 'identity-registered' | 'identity-logged-in' | 'identity-logged-out' | 'identity-updated-self' | 'identity-deleted-self' | 'identity-sessions-revoked' | 'identity-password-reset-requested' | 'identity-password-reset' | 'identity-email-verification-requested' | 'identity-email-verified' | 'identity-provider-linked' | 'identity-provider-unlinked';
 
@@ -73,12 +253,6 @@ type CompleteIdentityOAuthOptions = {
 };
 
 type IdentityOrderBy = 'createdAt' | 'updatedAt' | 'name' | 'displayName' | 'group' | 'activated';
-
-type IdentityParameter = {
-    ignore?: boolean;
-    group?: string;
-    token: string;
-};
 
 type Metric<T extends string = string> = {
     [key in T]: number;
@@ -200,72 +374,6 @@ type PaginatedResponse<T = any> = {
     data: T[];
 };
 
-/**
- * Rate limit and quota information, read from the headers of an API response
- */
-type ResponseMeta = {
-    /**
-     * The HTTP status code
-     */
-    status: number;
-    /**
-     * The request id, which is useful when reporting a problem
-     */
-    requestId: string | null;
-    /**
-     * The per-minute rate limit, or null if the plan has no per-minute limit
-     */
-    rateLimit: {
-        /**
-         * How many requests the plan allows per minute
-         */
-        total: number;
-        /**
-         * How many more requests can be made in the rolling minute, after this one
-         */
-        remaining: number;
-    } | null;
-    /**
-     * The monthly request quota, or null if the request wasn't metered
-     */
-    quota: {
-        /**
-         * The monthly allowance, excluding any overdraft or credits, or null if
-         * the plan has no monthly limit
-         */
-        total: number | null;
-        /**
-         * How many requests are left before writes are refused, including any
-         * overdraft and credits, or null if the plan has no monthly limit
-         */
-        remaining: number | null;
-        /**
-         * How many prepaid request credits are held, or null if the plan has no
-         * monthly limit
-         */
-        credits: number | null;
-        /**
-         * When the monthly allowance resets
-         */
-        resetAt: Date;
-        /**
-         * True if the allowance and credits have run out, and this read was served
-         * at the free tier's rate limit
-         */
-        degraded: boolean;
-    } | null;
-    /**
-     * On a 429 response, how many seconds to wait before retrying
-     */
-    retryAfter: number | null;
-    /**
-     * The item's ETag, on a response that carries one (fetching or writing an
-     * item). Send it back as `ifMatch` to write only if the item hasn't
-     * changed since
-     */
-    etag?: string | null;
-};
-
 type SearchResult = {
     relevance: number;
 } & ({
@@ -371,6 +479,31 @@ type SyncSchemaDocument = {
      * Lists, keyed by path name
      */
     lists: Record<string, SyncSchemaListDefinition>;
+    /**
+     * Flows, keyed by name. Leave this out and the sync doesn't touch flows
+     * (and a prune doesn't delete any). Syncing flows needs a token that is
+     * allowed everything
+     */
+    flows?: Record<string, SyncSchemaFlowDefinition>;
+};
+/**
+ * A flow in a schema sync document
+ */
+type SyncSchemaFlowDefinition = {
+    /**
+     * The flow document. Its name can be left out: it's the key. Its layout
+     * is only used when the flow is created
+     */
+    document: Record<string, any>;
+    /**
+     * The flow's stored tests, which must pass, or null for none. Left out,
+     * they're left as they are
+     */
+    tests?: Record<string, any> | null;
+    /**
+     * Left out, a new flow is activated and an existing one is left as it is
+     */
+    activated?: boolean;
 };
 type SyncSchemaAction = 'create' | 'update' | 'adopt' | 'delete' | 'no-change' | 'error';
 type SyncSchemaError = {
@@ -384,17 +517,22 @@ type SyncSchemaError = {
     details?: Record<string, any>;
 };
 type SyncSchemaChange = {
-    resourceType: 'list' | 'index';
+    resourceType: 'list' | 'index' | 'flow';
     /**
-     * The list's path name
+     * The list's path name, for list and index changes
      */
-    list: string;
+    list?: string;
     /**
      * The index's path name, for index changes
      */
     index?: string;
     listId?: string;
     indexId?: string;
+    /**
+     * The flow's name and id, for flow changes
+     */
+    flow?: string;
+    flowId?: string;
     action: SyncSchemaAction;
     fields?: Record<string, {
         from: any;
@@ -553,13 +691,17 @@ type MoveListsResult = {
 
 type TokenPermission = {
     mode: 'allow' | 'block';
-    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'reset-password' | 'verify-email' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity' | 'sync-schema';
-    resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats';
+    action: '*' | 'create' | 'view' | 'update' | 'delete' | 'restore' | 'register' | 'authenticate' | 'reset-password' | 'verify-email' | 'create-with-identity' | 'view-with-identity' | 'update-with-identity' | 'delete-with-identity' | 'restore-with-identity' | 'sync-schema' | 'run' | 'run-with-identity';
+    resourceType?: 'list' | 'item' | 'index' | 'identity' | 'event' | 'stats' | 'flow';
     listIds?: string[];
     itemIds?: string[];
     indexIds?: string[];
     identityIds?: string[];
     groups?: string[];
+    /**
+     * For the run and run-with-identity actions: the flows the token can run
+     */
+    flowIds?: string[];
 };
 
 declare class Token {
@@ -1010,43 +1152,6 @@ declare class IndexBuildError extends Error {
      */
     readonly index: Index;
     constructor(reason: 'failed' | 'timeout', index: Index);
-}
-
-/**
- * Thrown when the API responds with an error status
- */
-declare class JSONPadError extends Error {
-    /**
-     * The HTTP status code, e.g. 429
-     */
-    readonly status: number;
-    /**
-     * The jsonpad error code, e.g. 10007, or null if the response wasn't a
-     * jsonpad error
-     */
-    readonly code: number | null;
-    /**
-     * The jsonpad error name, e.g. 'RATE_LIMIT_EXCEEDED', or null if the
-     * response wasn't a jsonpad error
-     */
-    readonly errorName: string | null;
-    /**
-     * Rate limit and quota information from the response
-     */
-    readonly meta: ResponseMeta;
-    /**
-     * Structured information about the error, when the API sends any: the
-     * diagnostics for write rules that don't compile, the tests that failed,
-     * or the rule that refused a write
-     */
-    readonly details: Record<string, any> | null;
-    constructor(status: number, body: string, meta: ResponseMeta);
-    /**
-     * How many seconds to wait before retrying, when the API says: on a 429
-     * response, or a 409 INDEX_BUILDING response for an index that is still
-     * being built
-     */
-    get retryAfter(): number | null;
 }
 
 /**
@@ -1699,6 +1804,23 @@ declare class JSONPad extends EventTarget {
      */
     fetchSelfToken(): Promise<TokenSelf>;
     /**
+     * Call an endpoint flow, e.g. `runFlow('create-order', { productId })` for
+     * a flow at /flows/create-order
+     *
+     * The token needs the `run` permission on the flow, or `run-with-identity`
+     * when the SDK is signed in as an identity (or one is given). The flow
+     * runs in one transaction: if it fails (a require node refuses, an item it
+     * needs isn't there, a write is refused) nothing it wrote is kept, and a
+     * FlowError is thrown with the status and message the flow failed with
+     */
+    runFlow<T = any>(path: string, input?: Record<string, any> | null, options?: RunFlowOptions): Promise<FlowResponse<T>>;
+    /**
+     * Call a public endpoint flow by its id. No token is sent: anyone can call
+     * a public flow, and its require nodes decide what they may do
+     */
+    runPublicFlow<T = any>(flowId: string, input?: Record<string, any> | null, options?: RunPublicFlowOptions): Promise<FlowResponse<T>>;
+    private sendFlowRequest;
+    /**
      * Create and update lists and indexes to match a schema sync document, and
      * with `prune`, delete the ones its scope manages that it no longer declares
      *
@@ -1732,4 +1854,4 @@ declare class JSONPad extends EventTarget {
     exportSchema(options?: ExportSchemaOptions): Promise<SyncSchemaExport>;
 }
 
-export { type CompleteIdentityOAuthOptions, ConflictError, Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, Identity, type IdentityEventType, type IdentityOAuthProvider, type IdentityOAuthStorage, type IdentityOrderBy, type IdentityParameter, type IdentityProviderAccount, type IdentityStats, type IdentityTokenRequest, type IdentityTokenRequestResult, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, PreconditionFailedError, ResponseEvent, type ResponseMeta, type SearchResult, type StartIdentityOAuthOptions, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, type TestWriteRulesRequest, type TestWriteRulesResult, Token, type TokenPermission, type TokenSelf, type Usage, User, type WriteRuleDenial, type WriteRuleDiagnostic, WriteRuleError, type WriteRuleStatementResult, JSONPad as default };
+export { type CompleteIdentityOAuthOptions, ConflictError, Event, type EventOrderBy, type EventStream, type ExportSchemaOptions, FlowError, type FlowMethod, type FlowResponse, Identity, type IdentityEventType, type IdentityOAuthProvider, type IdentityOAuthStorage, type IdentityOrderBy, type IdentityParameter, type IdentityProviderAccount, type IdentityStats, type IdentityTokenRequest, type IdentityTokenRequestResult, Index, IndexBuildError, type IndexBuildStatus, type IndexEventType, type IndexOrderBy, type IndexStats, type IndexValueType, Item, type ItemEventType, type ItemOrderBy, type ItemStats, JSONPadError, type JSONPadOptions, List, type ListEventType, type ListOrderBy, type ListStats, type MoveListsAction, type MoveListsChange, type MoveListsOptions, type MoveListsResult, type MoveListsSelection, type OrderDirection, type PaginatedRequest, type PaginatedResponse, PreconditionFailedError, ResponseEvent, type ResponseMeta, type RunFlowOptions, type RunPublicFlowOptions, type SearchResult, type StartIdentityOAuthOptions, type SubscriptionPlan, type SyncSchemaAction, type SyncSchemaChange, type SyncSchemaDocument, type SyncSchemaError, type SyncSchemaExport, type SyncSchemaFlowDefinition, type SyncSchemaIndexDefinition, type SyncSchemaListDefinition, type SyncSchemaOptions, type SyncSchemaResult, type TestWriteRulesRequest, type TestWriteRulesResult, Token, type TokenPermission, type TokenSelf, type Usage, User, type WriteRuleDenial, type WriteRuleDiagnostic, WriteRuleError, type WriteRuleStatementResult, JSONPad as default };

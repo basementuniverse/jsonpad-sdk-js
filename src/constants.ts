@@ -5,6 +5,7 @@ export const IDENTITY_TOKEN_HEADER = 'x-identity-token';
 export const REQUEST_ID_HEADER = 'x-request-id';
 export const ETAG_HEADER = 'etag';
 export const IF_MATCH_HEADER = 'if-match';
+export const FLOW_RUN_HEADER = 'x-flow-run';
 export const RETRY_AFTER_HEADER = 'retry-after';
 export const RATE_LIMIT_TOTAL_HEADER = 'x-rate-limit-total';
 export const RATE_LIMIT_REMAINING_HEADER = 'x-rate-limit-remaining';

@@ -1,4 +1,6 @@
+import * as constants from '../constants';
 import { ResponseMeta } from '../types/response-meta';
+import { FlowError } from './flow-error';
 import { JSONPadError } from './jsonpad-error';
 import {
   ConflictError,
@@ -12,7 +14,8 @@ import {
 export function errorFromResponse(
   status: number,
   body: string,
-  meta: ResponseMeta
+  meta: ResponseMeta,
+  headers?: Headers
 ): JSONPadError {
   const error = new JSONPadError(status, body, meta);
 
@@ -24,6 +27,13 @@ export function errorFromResponse(
       return new PreconditionFailedError(status, body, meta);
     case 'ITEM_CONFLICT':
       return new ConflictError(status, body, meta);
+    case 'FLOW_FAILED':
+      return new FlowError(
+        status,
+        body,
+        meta,
+        headers?.get(constants.FLOW_RUN_HEADER) ?? null
+      );
     default:
       return error;
   }

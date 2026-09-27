@@ -8,6 +8,25 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [Unreleased]
+
+Needs the JSONPad API release with flows.
+
+### Added
+
+- **Flows.** `runFlow()` calls an endpoint flow and returns its status, body,
+  headers and run id. `runPublicFlow()` calls a public flow by its id, without
+  sending a token.
+- `FlowError`, thrown when a flow fails. `flowCode` and `node` say why and
+  where, `flowMessage` is the flow's message, and `runId` finds the run in the
+  dashboard's run log.
+- The `run` and `run-with-identity` token permission actions, the `flow`
+  resource type and `flowIds`, in `TokenPermission`.
+- `flows` in `SyncSchemaDocument` (`SyncSchemaFlowDefinition`), and flow
+  changes (`resourceType: 'flow'`, with `flow` and `flowId`) in
+  `SyncSchemaChange`. `SyncSchemaChange.list` is now optional, since flow
+  changes have none.
+
 ## [2.2.0] - 2026-09-23
 
 Needs the JSONPad API release with write rules and conditional writes.
