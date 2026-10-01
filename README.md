@@ -71,6 +71,14 @@ const jsonpad = new JSONPad('your-api-token', undefined, undefined, {
 });
 ```
 
+`userAgent` is sent as the `User-Agent` header of every request, so you can tell your app's or tool's traffic apart in logs. Browsers may not let scripts set it, in which case it's left out:
+
+```ts
+const jsonpad = new JSONPad('your-api-token', undefined, undefined, {
+  userAgent: 'my-app/1.0',
+});
+```
+
 ## Rate limits and quotas
 
 Every response from the API includes information about your per-minute rate limit and your monthly quota. The SDK dispatches a `response` event with this information every time it receives a response, whether or not the request succeeded:

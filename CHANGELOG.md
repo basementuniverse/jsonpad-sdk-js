@@ -8,6 +8,14 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Dates are npm publish dates. Entries up to and including 1.6.5 were backfilled
 on 2026-09-14 from git history and are deliberately brief.
 
+## [Unreleased]
+
+### Added
+
+- A `userAgent` constructor option, sent as the `User-Agent` header of every
+  request (including flow calls), to identify the app or tool making them.
+  Browsers may not let scripts set it.
+
 ## [2.3.0] - 2026-09-27
 
 Needs the JSONPad API release with flows.

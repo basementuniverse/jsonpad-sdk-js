@@ -62,12 +62,21 @@ export type JSONPadOptions = {
    * https://api.jsonpad.io
    */
   apiUrl?: string;
+
+  /**
+   * Sent as the User-Agent header of every request, to identify your app or
+   * tool, e.g. 'my-app/1.0'. Browsers may not let scripts set it, in which
+   * case it's left out
+   */
+  userAgent?: string;
 };
 
 export class JSONPad extends EventTarget {
   private lastResponseMeta: ResponseMeta | null = null;
 
   private apiUrl: string;
+
+  private userAgent: string | undefined;
 
   /**
    * Create a new JSONPad client instance
@@ -80,6 +89,7 @@ export class JSONPad extends EventTarget {
   ) {
     super();
     this.apiUrl = (options.apiUrl ?? constants.API_URL).replace(/\/+$/, '');
+    this.userAgent = options.userAgent || undefined;
   }
 
   /**
@@ -147,7 +157,7 @@ export class JSONPad extends EventTarget {
     ...args: Parameters<typeof sendRequest>
   ): Promise<T | null> {
     const [token, method, path, parameters, body, group, identityToken] = args;
-    const extraHeaders = args[8];
+    const extraHeaders = this.withUserAgent(args[8]);
 
     try {
       const { data, meta } = await sendRequest<T>(
@@ -171,6 +181,19 @@ export class JSONPad extends EventTarget {
 
       throw error;
     }
+  }
+
+  /**
+   * Add the User-Agent header to a request's headers, if one was configured
+   */
+  private withUserAgent(
+    headers?: Record<string, string>
+  ): Record<string, string> | undefined {
+    if (!this.userAgent) {
+      return headers;
+    }
+
+    return { [constants.USER_AGENT_HEADER]: this.userAgent, ...headers };
   }
 
   private handleResponse(meta: ResponseMeta) {
@@ -1895,7 +1918,8 @@ export class JSONPad extends EventTarget {
         method === 'GET' ? undefined : (input ?? undefined),
         group,
         identityToken,
-        this.apiUrl
+        this.apiUrl,
+        this.withUserAgent()
       );
       this.handleResponse(response.meta);
 

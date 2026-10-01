@@ -1222,6 +1222,12 @@ type JSONPadOptions = {
      * https://api.jsonpad.io
      */
     apiUrl?: string;
+    /**
+     * Sent as the User-Agent header of every request, to identify your app or
+     * tool, e.g. 'my-app/1.0'. Browsers may not let scripts set it, in which
+     * case it's left out
+     */
+    userAgent?: string;
 };
 declare class JSONPad extends EventTarget {
     private token;
@@ -1229,6 +1235,7 @@ declare class JSONPad extends EventTarget {
     private identityToken?;
     private lastResponseMeta;
     private apiUrl;
+    private userAgent;
     /**
      * Create a new JSONPad client instance
      */
@@ -1260,6 +1267,10 @@ declare class JSONPad extends EventTarget {
      * information from its response whether or not the request succeeded
      */
     private request;
+    /**
+     * Add the User-Agent header to a request's headers, if one was configured
+     */
+    private withUserAgent;
     private handleResponse;
     /**
      * Create a new list
